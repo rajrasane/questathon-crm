@@ -35,7 +35,7 @@ export async function readRpcResponse(response:Response):Promise<unknown> {
  const reader=response.body?.getReader();if(!reader)throw new Error('Empty event stream');
  const decoder=new TextDecoder();let buffer='';let bytes=0;
  const parseEvent=(frame:string):unknown|undefined=>{const data=frame.split('\n').filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trimStart()).join('\n');if(!data)return undefined;const value=JSON.parse(data);return value && value.jsonrpc==='2.0' && ('result' in value || 'error' in value)?value:undefined;};
- try {while(true){const {value,done}=await reader.read();if(value){bytes+=value.byteLength;if(bytes>8*1024*1024)throw new Error('Event response exceeds limit');buffer+=decoder.decode(value,{stream:true}).replace(/\r\n/g,'\n');}
+ try {while(true){const {value,done}=await reader.read();if(value){bytes+=value.byteLength;if(bytes>8*1024*1024)throw new Error('Event response exceeds limit');buffer=(buffer+decoder.decode(value,{stream:true})).replace(/\r\n/g,'\n');}
   let boundary:number;while((boundary=buffer.indexOf('\n\n'))>=0){const frame=buffer.slice(0,boundary);buffer=buffer.slice(boundary+2);const parsed=parseEvent(frame);if(parsed!==undefined)return parsed;}
   if(done){const parsed=parseEvent(buffer);if(parsed!==undefined)return parsed;throw new Error('No JSON-RPC response in event stream');}
  }}finally{await reader.cancel().catch(()=>{});}

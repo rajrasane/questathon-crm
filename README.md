@@ -67,3 +67,19 @@ Existing annual contract value is renewal exposure, separate from new booked val
 Scenario dates, discovery-export dates, import times and unknown source retrieval times remain separate. Future scenario dates are allowed. A local import does not claim to be a fresh upstream retrieval. Source older-than-one-day warnings use known retrieval times and cache age; missing retrieval metadata remains explicitly unknown.
 
 Hosting, access control, a walkthrough recording and final event submission remain separate steps. The local API exposes selected private evidence to anyone allowed to reach that server; decide authorized readership before deploying. See [thinking document](docs/THINKING.md) for the design rationale.
+
+## Start live mode on your laptop
+
+Stop the current dev server and ensure Work has stopped all MCP requests. Then run:
+
+```sh
+npm run live
+```
+
+The launcher requires explicit confirmation that every other caller has stopped, then accepts the token through hidden terminal input. The token is passed only to the server process environment; it is not written to a file or shell history. After the initial 65-second cooldown, the server checks signals on the shared rate budget. Keep this terminal running. In another terminal:
+
+```sh
+npm run live:status
+```
+
+A successful check timestamp is evidence that a real check completed. A prior check record alone does not prove that the server is currently running. Keep this local process as the sole caller until an explicit later handover. Stopping the server ends this process's polling.
