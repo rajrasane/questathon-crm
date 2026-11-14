@@ -36,3 +36,7 @@ Initial setup fetches the discovery export, each account's paperwork and referen
 The 90-second lease exceeds the 60-second function limit and 25-second MCP timeout. Redis service failure blocks requests rather than bypassing coordination. Crash recovery waits for lease/cooldown expiry. Event history grows with distinct updates and requires monitoring against the selected store's capacity.
 
 References: [Vercel Functions](https://vercel.com/docs/functions), [Redis REST API](https://upstash.com/docs/redis/features/restapi), [Vercel cron limits](https://vercel.com/docs/cron-jobs/usage-and-pricing).
+
+## Newly released accounts
+
+Discovery refreshes every ten minutes after baseline fetching, or earlier when a signal references an unrecognized account. A pre-existing cache without discovery-refresh metadata refreshes on its next available ingestion cycle. Refresh preserves known accounts, loaded paperwork, files and signals, and updates records by stable identity. Only missing account packs/files are fetched. All calls use the same global request budget. New accounts use the same generic normalizer and analysis; their actual schema and evidence still require validation. There is no hard-coded two-account limit.

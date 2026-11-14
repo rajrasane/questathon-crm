@@ -15,3 +15,7 @@ Initial account records, historical paperwork and current signals have different
 The cache stores validated source responses, the current source bundle, normalized snapshot, merged tables and event-version ledger. Each account's deals remain separate. The server derives summary, roles, proposed actions, risks, unknowns and supported contradictions directly from current records. Legacy private analysis files do not override this result. The normalizer version is part of the fingerprint, so a code update regenerates cached analysis at startup without another upstream request.
 
 All network attempts share one server-side 61-second reservation written before I/O. Baseline fetching and subsequent signal reads use the same coordinator. The browser only reads cached views. Repeated signal IDs and row keys merge idempotently. No note writes or generic browser-to-MCP proxy are exposed.
+
+## Newly released accounts
+
+Discovery refreshes every ten minutes after baseline fetching, or earlier when a signal references an unrecognized account. A pre-existing cache without discovery-refresh metadata refreshes on its next available ingestion cycle. Refresh preserves known accounts, loaded paperwork, files and signals, and updates records by stable identity. Only missing account packs/files are fetched. All calls use the same global request budget. New accounts use the same generic normalizer and analysis; their actual schema and evidence still require validation. There is no hard-coded two-account limit.

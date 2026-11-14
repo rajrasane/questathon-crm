@@ -1,3 +1,8 @@
+import {
+  discoveryDue,
+  mergeDiscovery,
+  unknownAccountSignature,
+} from "./discovery.js";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import {
@@ -63,6 +68,8 @@ return 1`;
 export const releaseScript = `if redis.call('GET',KEYS[1])==ARGV[1] then return redis.call('DEL',KEYS[1]) end return 0`;
 const stateSchema = z.object({
   bundle: bundleSchema,
+  discoveryCheckedAt: z.number().nullable().default(null),
+  discoveryUnknowns: z.string().default(""),
   snapshot: snapshotSchema,
   fingerprint: z.string(),
   events: z.array(
@@ -175,7 +182,14 @@ export async function hostedStep(
   try {
     previous = await readState(redis);
     const task = pendingFetch(previous?.bundle || null) || {
-      name: "get_signals",
+      name: discoveryDue(
+        previous?.bundle || null,
+        previous?.discoveryCheckedAt ?? null,
+        previous?.discoveryUnknowns || "",
+        Date.now(),
+      )
+        ? "get_my_accounts"
+        : "get_signals",
       args: {},
     };
     const response = await request(
@@ -204,7 +218,7 @@ export async function hostedStep(
     const data = schemas[task.name].parse(decodeToolResult(envelope.result));
     let bundle: Bundle;
     if (task.name === "get_my_accounts")
-      bundle = { accounts: exportSchema.parse(data) };
+      bundle = mergeDiscovery(previous?.bundle || null, data);
     else if (task.name === "get_all_paperwork") {
       const pack = paperworkSchema.parse(data);
       if (pack.account !== task.args.account) throw Error("Account mismatch");
@@ -239,6 +253,14 @@ export async function hostedStep(
     }
     await publish({
       bundle,
+      discoveryCheckedAt:
+        task.name === "get_my_accounts"
+          ? Date.now()
+          : (previous?.discoveryCheckedAt ?? null),
+      discoveryUnknowns:
+        task.name === "get_my_accounts"
+          ? unknownAccountSignature(bundle)
+          : previous?.discoveryUnknowns || "",
       snapshot,
       fingerprint,
       events: [...events.values()],
