@@ -207,7 +207,10 @@ export async function hostedStep(
     const cachedDrop = task.name === "get_new_account" ? await redis.command(["GET", "{questathon}:drop-response"]) : null;
     const cachedExport = typeof cachedDrop === "string" ? exportSchema.safeParse(JSON.parse(cachedDrop)) : null;
     const reuseDrop = cachedExport?.success && cachedExport.data.accounts.some(a=>a.id===task.args.account);
-    const response = reuseDrop ? new Response(JSON.stringify({result:{content:[{type:"text",text:cachedDrop}]}})) : await request(
+    const cachedFile = task.name === "get_new_account_file" ? await redis.command(["GET", "{questathon}:file-response"]) : null;
+    const parsedFile = typeof cachedFile === "string" ? fileSchema.safeParse(JSON.parse(cachedFile)) : null;
+    const reuseFile = parsedFile?.success && parsedFile.data.id === task.args.file_id;
+    const response = reuseFile ? new Response(JSON.stringify({result:{content:[{type:"text",text:cachedFile}]}})) : reuseDrop ? new Response(JSON.stringify({result:{content:[{type:"text",text:cachedDrop}]}})) : await request(
       "https://questathon.aihackerscollective.com/api/public/mcp",
       {
         method: "POST",
@@ -229,6 +232,7 @@ export async function hostedStep(
     const envelope = z
       .object({ result: z.unknown().optional(), error: z.unknown().optional() })
       .parse(await readRpcResponse(response));
+    if (task.name === "get_new_account_file") await redis.command(["SET", "{questathon}:file-envelope", JSON.stringify(envelope)]);
     if (envelope.error) throw Error("Upstream tool error");
     const decoded = task.name === "tools/list" ? envelope.result : decodeToolResult(envelope.result);
     if (diagnostic === task.name && (task.name === "whoami" || task.name === "tools/list")) {
@@ -237,6 +241,7 @@ export async function hostedStep(
       return { status: "ok", resource: task.name, changed: false };
     }
     if (task.name === "get_new_account") await redis.command(["SET", "{questathon}:drop-response", JSON.stringify(decoded)]);
+    if (task.name === "get_new_account_file") await redis.command(["SET", "{questathon}:file-response", JSON.stringify(decoded)]);
     const data = schemas[task.name].parse(decoded);
     let bundle: Bundle;
     if (task.name === "whoami")

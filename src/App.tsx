@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { money, type Statement, type WorkspaceResponse } from "./model";
 import { StatementView } from "./StatementView";
 import { Deals } from "./Deals";
+import { Portfolio } from "./Portfolio";
 import { AccountDetails } from "./AccountUpdates";
 
 type View = "overview" | "deals" | "people" | "evidence";
@@ -18,6 +19,7 @@ const roleNames = {
   uses: "Operations",
   blocks: "Dependencies",
 };
+const resourceLabel = (value: string | null | undefined) => ({whoami:"Check newly released accounts",get_my_accounts:"Load initial accounts",get_new_account:"Load a released account",get_all_paperwork:"Load supporting paperwork",get_new_account_file:"Load a supporting file",get_file:"Load a supporting file",get_signals:"Check incoming signals"}[value || ""] || "Not recorded");
 const dateLabel = (value: string) =>
   new Date(`${value.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-GB", {
     day: "numeric",
@@ -31,6 +33,7 @@ export function App() {
   const [response, setResponse] = useState<WorkspaceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState("");
+  const [portfolio, setPortfolio] = useState(true);
   const [view, setView] = useState<View>("overview");
   const [query, setQuery] = useState("");
   const [allAccounts, setAllAccounts] = useState(false);
@@ -115,6 +118,7 @@ export function App() {
     return <StatementView value={s} citations={citations} />;
   }
   function selectAccount(key: string) {
+    setPortfolio(false);
     setSelected(key);
     setView("overview");
     setQuery("");
@@ -144,6 +148,7 @@ export function App() {
             Account Brief<small>Questathon workspace</small>
           </span>
         </a>
+        <button className={`workspace-home ${portfolio ? "active" : ""}`} onClick={()=>setPortfolio(true)}><span aria-hidden="true">▦</span> Portfolio overview</button>
         <div className="nav-caption">
           Accounts <span>{accounts.length}</span>
         </div>
@@ -151,8 +156,8 @@ export function App() {
           {accounts.map((a) => (
             <button
               key={a.key}
-              className={`account-button ${account?.key === a.key ? "active" : ""}`}
-              aria-current={account?.key === a.key ? "page" : undefined}
+              className={`account-button ${!portfolio && account?.key === a.key ? "active" : ""}`}
+              aria-current={!portfolio && account?.key === a.key ? "page" : undefined}
               onClick={() => selectAccount(a.key)}
             >
               <span className="account-mark" aria-hidden="true">
@@ -185,7 +190,7 @@ export function App() {
       <main id="workspace">
         <header className="topbar">
           <span>
-            Workspace <span className="crumb">/ {labels[view]}</span>
+            Workspace <span className="crumb">/ {portfolio ? "Portfolio" : labels[view]}</span>
           </span>
           <div className="topbar-actions">
             <span
@@ -206,6 +211,7 @@ export function App() {
           </div>
         </header>
         <div className="content">
+          {portfolio ? <Portfolio response={response} onOpen={(key,next)=>{selectAccount(key);if(next)setView(next);}}/> : <>
           <div className="page-heading">
             <div>
               <h1>{account?.name || "Your account workspace"}</h1>
@@ -220,12 +226,12 @@ export function App() {
               <div className="sync-popover">
                 <strong>{response?.message || "Reading the workspace."}</strong>
                 <dl>
-                  <dt>Last completed MCP request</dt>
-                  <dd>{response?.ingestion?.lastResource || "Not recorded"} · {stamp(response?.ingestion?.lastCompletedAt)}</dd>
+                  <dt>Last completed ingestion step</dt>
+                  <dd>{resourceLabel(response?.ingestion?.lastResource)} · {stamp(response?.ingestion?.lastCompletedAt)}</dd>
                   <dt>Account discovery checked</dt>
                   <dd>{stamp(response?.ingestion?.discoveryCheckedAt)} · {response?.ingestion?.accountCount ?? response?.snapshot?.accounts.length ?? 0} accounts returned</dd>
                   <dt>Next work</dt>
-                  <dd>{response?.ingestion?.pendingResource || "Signal checks; account discovery every 10 minutes"}</dd>
+                  <dd>{response?.ingestion?.pendingResource ? resourceLabel(response.ingestion.pendingResource) : "Signal checks; account discovery every 10 minutes"}</dd>
                   <dt>Cache updated</dt>
                   <dd>{stamp(response?.snapshot?.generatedAt)}</dd>
                   <dt>Scenario date</dt>
@@ -701,6 +707,7 @@ export function App() {
               </div>
             </>
           )}
+          </>}
           <footer>
             <span>Account Brief</span>
             <span>

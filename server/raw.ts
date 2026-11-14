@@ -8,7 +8,7 @@ export const exportSchema=z.object({format:z.literal('account-quest-v2-export/1'
  opportunities:z.array(z.object({id:z.string(),title:z.string(),stage:z.enum(['identified','qualified','cleared','agreed']),worth_up_to:z.number().nullable().optional(),blocker:z.object({text:z.string(),status:z.string()}).nullable().optional(),evidence:z.array(z.string()),deadline:z.object({text:z.string(),minute:z.number()}).nullable().optional()})),
  offers:z.array(z.object({id:z.string(),title:z.string(),value:z.number(),pitch_to:z.string().optional(),status:z.enum(['open','won','declined'])})).default([]),
 }).passthrough()),files:z.array(z.object({id:z.string(),title:z.string(),path:z.string(),account:z.string().optional()})).default([])}).passthrough();
-export const bundleSchema=z.object({accounts:exportSchema,signals:signalsSchema.optional(),tools:z.object({tools:z.array(z.object({name:z.string(),inputSchema:z.unknown()}).passthrough())}).optional(),schema:z.unknown().optional(),fetched_files:z.array(z.object({id:z.string(),name:z.string(),text:z.string()})).optional(),roi_file:z.object({id:z.string(),name:z.string(),text:z.string()}).optional()}).catchall(z.unknown());
+export const bundleSchema=z.object({accounts:exportSchema,signals:signalsSchema.optional(),tools:z.object({tools:z.array(z.object({name:z.string(),inputSchema:z.unknown()}).passthrough())}).optional(),schema:z.unknown().optional(),fetched_files:z.array(z.object({id:z.string(),name:z.string().optional(),text:z.string()})).optional(),roi_file:z.object({id:z.string(),name:z.string().optional(),text:z.string()}).optional()}).catchall(z.unknown());
 export const paperworkSchema=z.object({account:z.string(),records:z.array(record)});
 export type Bundle=z.infer<typeof bundleSchema>;
 export type Signal=z.infer<typeof signalsSchema>['signals'][number];
@@ -19,6 +19,6 @@ export function parseCsv(text:string):Record<string,string>[] {
  if(quoted)throw new Error('Unclosed CSV quote');if(cell || row.length){row.push(cell.replace(/\r$/,''));rows.push(row);}const headers=rows.shift()||[];
  return rows.map(values=>Object.fromEntries(headers.map((h,i)=>[h,values[i]||''])));
 }
-export const fileSchema=z.object({id:z.string(),name:z.string(),text:z.string()});
+export const fileSchema=z.object({id:z.string(),name:z.string().optional(),text:z.string()});
 
 export const accessSchema=z.object({new_accounts:z.array(z.object({id:z.string(),name:z.string()}).passthrough()).default([])}).passthrough();

@@ -70,3 +70,9 @@ test('drop export accepts explicit ISO timezone offsets without rewriting source
  const data={...exported('SYNTH-OFFSET'),exported_at:'2030-01-01T16:00:00+05:30'};
  assert.equal(mergeDiscovery(null,data).accounts.exported_at,data.exported_at);
 });
+
+test('released file payload may omit a name; content and identity remain required',async()=>{
+ const {fileSchema}=await import('../server/raw.js');
+ assert.deepEqual(fileSchema.parse({id:'synthetic-file',text:'Synthetic evidence'}),{id:'synthetic-file',text:'Synthetic evidence'});
+ assert.equal(fileSchema.safeParse({id:'synthetic-file'}).success,false);
+});
