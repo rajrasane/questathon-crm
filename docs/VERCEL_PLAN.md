@@ -1,6 +1,6 @@
 # Vercel deployment plan
 
-Status: implementation prepared on `feat/submission-ready`; see [hosted setup](HOSTED_SETUP.md) for the current adapter and acceptance steps. Production provisioning and validation remain pending. The historical plan below records the original migration scope. No Vercel project, storage, schedule or deployment has been created by this coding task. Provisioning and deployment remain paused pending confirmation in the main conversation after the reported automatic-approval rejection. The laptop remains the sole MCP caller. Final submission remains outside this step.
+Status: the approved free-tier Vercel, Redis and QStash setup is provisioned. Production owns ingestion after the confirmed laptop handover; baseline and signal reads have succeeded. See [hosted setup](HOSTED_SETUP.md) for the current adapter and acceptance steps. The historical plan below records the original migration scope, not outstanding implementation work. Final submission remains outside this step.
 
 ## Target layout
 

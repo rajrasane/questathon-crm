@@ -64,4 +64,6 @@ NODE_ENV=production npm start
 
 Use one persistent coordinator directory across every process sharing a token. Multiple hosts require external shared coordination before use. Crash-leftover locks fail closed and require operator review. No public proxy, note-write route or automatic note writer is provided.
 
-Vercel API handlers and Redis-backed coordination are available on the submission-preparation branch; actual provisioning, secrets, scheduling and hosted acceptance remain pending. See [hosted setup](docs/HOSTED_SETUP.md). See [deployment plan](docs/VERCEL_PLAN.md), [data contract](docs/DATA_CONTRACT.md), and [thinking document](docs/THINKING.md). UI redesign and final submission are separate steps.
+The [hosted application](https://questathon-crm-blue.vercel.app) runs the `feat/submission-ready` implementation on Vercel with private Redis persistence and a protected QStash trigger every two minutes. Production owns MCP ingestion; do not also start a laptop poller with the same token. Initial records are fetched through MCP, and the browser reads only the cached workspace. Free plans are configured with zero scheduler retries and Redis automatic upgrades disabled.
+
+See [hosted setup](docs/HOSTED_SETUP.md), the [historical deployment plan](docs/VERCEL_PLAN.md), [data contract](docs/DATA_CONTRACT.md), [thinking document](docs/THINKING.md), and [walkthrough script](docs/WALKTHROUGH.md). Final event submission requires the owner's review.
