@@ -194,7 +194,7 @@ export async function hostedStep(
     previous = await readState(redis);
     const diagnostic = await redis.command(["GET", "{questathon}:diagnostic"]);
     const task = (["whoami", "tools/list"].includes(String(diagnostic)) ? { name: String(diagnostic), args: {} } : null) || pendingFetch(previous?.bundle || null) || {
-      name: discoveryDue(
+      name: !Array.isArray(previous?.bundle.released_accounts) || discoveryDue(
         previous?.bundle || null,
         previous?.discoveryCheckedAt ?? null,
         previous?.discoveryUnknowns || "",
