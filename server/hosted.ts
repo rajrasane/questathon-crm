@@ -189,7 +189,7 @@ export async function hostedStep(
   try {
     previous = await readState(redis);
     const diagnostic = await redis.command(["GET", "{questathon}:diagnostic"]);
-    const task = (diagnostic === "whoami" ? { name: "whoami", args: {} } : null) || pendingFetch(previous?.bundle || null) || {
+    const task = (["whoami", "tools/list"].includes(String(diagnostic)) ? { name: String(diagnostic), args: {} } : null) || pendingFetch(previous?.bundle || null) || {
       name: discoveryDue(
         previous?.bundle || null,
         previous?.discoveryCheckedAt ?? null,
@@ -212,7 +212,7 @@ export async function hostedStep(
         body: JSON.stringify({
           jsonrpc: "2.0",
           id: owner,
-          method: "tools/call",
+          method: task.name === "tools/list" ? "tools/list" : "tools/call",
           params: { name: task.name, arguments: task.args },
         }),
         signal: AbortSignal.timeout(25_000),
@@ -223,11 +223,11 @@ export async function hostedStep(
       .object({ result: z.unknown().optional(), error: z.unknown().optional() })
       .parse(await readRpcResponse(response));
     if (envelope.error) throw Error("Upstream tool error");
-    const decoded = decodeToolResult(envelope.result);
-    if (task.name === "whoami") {
+    const decoded = task.name === "tools/list" ? envelope.result : decodeToolResult(envelope.result);
+    if (task.name === "whoami" || task.name === "tools/list") {
       await redis.command(["SET", "{questathon}:diagnostic-result", JSON.stringify(decoded)]);
       await redis.command(["DEL", "{questathon}:diagnostic"]);
-      return { status: "ok", resource: "whoami", changed: false };
+      return { status: "ok", resource: task.name, changed: false };
     }
     const data = schemas[task.name].parse(decoded);
     let bundle: Bundle;
