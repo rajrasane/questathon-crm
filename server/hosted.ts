@@ -75,6 +75,8 @@ const stateSchema = z.object({
   events: z.array(
     z.object({ account: z.string(), id: z.string(), hash: z.string() }),
   ),
+  lastCompletedAt: z.string().nullable().default(null),
+  lastResource: z.string().nullable().default(null),
   lastCheckedAt: z.string().nullable(),
   lastChangedAt: z.string().nullable(),
   error: z.string().nullable(),
@@ -125,6 +127,11 @@ export async function hostedWorkspace(
         : "Evidence loaded from persistent storage. Unknowns remain explicit.",
       ingestion: {
         mode: process.env.CRM_INGESTION_OWNER === "hosted" ? "live" : "cached",
+        lastCompletedAt: state.lastCompletedAt,
+        lastResource: state.lastResource,
+        discoveryCheckedAt: state.discoveryCheckedAt ? new Date(state.discoveryCheckedAt).toISOString() : null,
+        pendingResource: pendingFetch(state.bundle)?.name || null,
+        accountCount: state.bundle.accounts.accounts.length,
         lastCheckedAt: state.lastCheckedAt,
         lastChangedAt: state.lastChangedAt,
         error: state.error,
@@ -181,7 +188,8 @@ export async function hostedStep(
   }
   try {
     previous = await readState(redis);
-    const task = pendingFetch(previous?.bundle || null) || {
+    const diagnostic = await redis.command(["GET", "{questathon}:diagnostic"]);
+    const task = (diagnostic === "whoami" ? { name: "whoami", args: {} } : null) || pendingFetch(previous?.bundle || null) || {
       name: discoveryDue(
         previous?.bundle || null,
         previous?.discoveryCheckedAt ?? null,
@@ -215,7 +223,13 @@ export async function hostedStep(
       .object({ result: z.unknown().optional(), error: z.unknown().optional() })
       .parse(await readRpcResponse(response));
     if (envelope.error) throw Error("Upstream tool error");
-    const data = schemas[task.name].parse(decodeToolResult(envelope.result));
+    const decoded = decodeToolResult(envelope.result);
+    if (task.name === "whoami") {
+      await redis.command(["SET", "{questathon}:diagnostic-result", JSON.stringify(decoded)]);
+      await redis.command(["DEL", "{questathon}:diagnostic"]);
+      return { status: "ok", resource: "whoami", changed: false };
+    }
+    const data = schemas[task.name].parse(decoded);
     let bundle: Bundle;
     if (task.name === "get_my_accounts")
       bundle = mergeDiscovery(previous?.bundle || null, data);
@@ -264,6 +278,8 @@ export async function hostedStep(
       snapshot,
       fingerprint,
       events: [...events.values()],
+      lastCompletedAt: now,
+      lastResource: task.name,
       lastCheckedAt:
         task.name === "get_signals" ? now : previous?.lastCheckedAt || null,
       lastChangedAt: changed ? now : previous?.lastChangedAt || null,

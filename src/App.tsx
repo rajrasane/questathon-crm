@@ -216,10 +216,16 @@ export function App() {
               </p>
             </div>
             <details className="sync-details">
-              <summary>Data status</summary>
+              <summary>{response?.ingestion?.error ? "MCP · check failed" : response?.ingestion?.mode !== "live" ? "MCP · cached only" : !response.ingestion.lastCheckedAt ? "MCP · loading records" : Date.now() - Date.parse(response.ingestion.lastCheckedAt) > 6 * 60_000 ? "MCP · check overdue" : "MCP · connected"}</summary>
               <div className="sync-popover">
                 <strong>{response?.message || "Reading the workspace."}</strong>
                 <dl>
+                  <dt>Last completed MCP request</dt>
+                  <dd>{response?.ingestion?.lastResource || "Not recorded"} · {stamp(response?.ingestion?.lastCompletedAt)}</dd>
+                  <dt>Account discovery checked</dt>
+                  <dd>{stamp(response?.ingestion?.discoveryCheckedAt)} · {response?.ingestion?.accountCount ?? response?.snapshot?.accounts.length ?? 0} accounts returned</dd>
+                  <dt>Next work</dt>
+                  <dd>{response?.ingestion?.pendingResource || "Signal checks; account discovery every 10 minutes"}</dd>
                   <dt>Cache updated</dt>
                   <dd>{stamp(response?.snapshot?.generatedAt)}</dd>
                   <dt>Scenario date</dt>
@@ -233,7 +239,7 @@ export function App() {
                   <dt>Mode</dt>
                   <dd>
                     {response?.ingestion?.mode === "live"
-                      ? "Server polling configured"
+                      ? "Scheduled checks every 2 minutes; a recent success confirms connectivity"
                       : "Cached records; live ingestion disabled"}
                   </dd>
                 </dl>

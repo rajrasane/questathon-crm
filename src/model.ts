@@ -71,7 +71,7 @@ export type Snapshot = z.infer<typeof snapshotSchema>;
 export type Account = z.infer<typeof accountSchema>;
 export type Statement = z.infer<typeof statementSchema>;
 export type Source = Snapshot['sources'][number];
-export type WorkspaceResponse = {state:'unconfigured'|'ready'|'partial'|'stale'|'error'; snapshot:Snapshot|null; message:string; loadedAt:string|null; ingestion?:{mode:'cached'|'live'|'unconfigured';lastCheckedAt:string|null;lastChangedAt:string|null;error:string|null}};
+export type WorkspaceResponse = {state:'unconfigured'|'ready'|'partial'|'stale'|'error'; snapshot:Snapshot|null; message:string; loadedAt:string|null; ingestion?:{lastCompletedAt?:string|null;lastResource?:string|null;discoveryCheckedAt?:string|null;pendingResource?:string|null;accountCount?:number;mode:'cached'|'live'|'unconfigured';lastCheckedAt:string|null;lastChangedAt:string|null;error:string|null}};
 export function money(value:Account['dealValue']):string {
   if(value.amount === null)return 'Unknown';
   if(!value.currency)return `${value.amount.toLocaleString('en')} (currency unknown)`;
