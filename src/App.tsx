@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { money, type Statement, type WorkspaceResponse } from "./model";
 import { StatementView } from "./StatementView";
 import { Deals } from "./Deals";
+import { AccountVisuals } from "./AccountVisuals";
 import { Portfolio } from "./Portfolio";
 import { AccountDetails } from "./AccountUpdates";
 
@@ -353,6 +354,7 @@ export function App() {
                         evidence={citations(account.bookValue.sourceIds)}
                       />
                     </div>
+                    <AccountVisuals account={account} sources={sources || []} openSources={openSources} onDeals={()=>setView("deals")}/>
                     <div className="overview-grid">
                       <section className="priorities">
                         <SectionTitle title="Next actions" aside="Proposed" />
