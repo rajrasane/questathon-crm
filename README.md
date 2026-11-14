@@ -1,51 +1,69 @@
 # Account Brief · Questathon CRM
 
-A concise account workspace that separates evidence, claims, told/reported statements, verified evidence, interpretations and unknowns. Built with React + TypeScript, Vite and a small Express server. No database or browser-held credential.
+An evidence-backed account workspace built with React, TypeScript, Vite and a small Express server. It separates claims, told/reported statements, verified evidence, interpretations and unknowns. Private records never belong in this public repository.
 
 ## Run locally
 
 Requires Node 22+ and npm.
 
 ```sh
+git switch feat/account-brief
 npm ci
 npm run dev
 ```
 
-Open `http://127.0.0.1:3000`. Without a private snapshot the app displays its real unconfigured state, not demo customer data. `Refresh view` only reloads the server cache.
+Open **http://127.0.0.1:3000**. Without imported private data, the app displays `Sources pending`. The browser refreshes its server cache every 15 seconds; browser tabs never call MCP.
+
+## Load your private handoff
+
+Download the separately supplied private runtime JSON to your computer, then run:
+
+```sh
+npx tsx server/import-bundle.ts /absolute/path/to/questathon-runtime.json
+```
+
+The importer supports the original raw bundle and a prepared `{bundle, analysis}` runtime package. The prepared package includes the reviewed account brief, proposed actions and contradictions; a raw bundle alone shows source-backed discovery and explicit analysis gaps. Private state goes into ignored `.private/`. You can use an external directory via `CRM_DATA_DIR` on both import and server commands.
+
+The app updates from disk on refresh; no rebuild is needed. Stop and restart the dev process after pulling server-code changes. Do not put a private file into `src/`, `public/`, `dist/` or any tracked directory. No credential is needed to preview a private cached import.
+
+The normalized-snapshot importer remains available for custom integrations:
+
+```sh
+npx tsx server/import.ts /absolute/private/path/snapshot.json
+```
+
+See [private import contract](docs/IMPORT_CONTRACT.md) for the presentation schema and source mapping.
+
+## Checks and production build
 
 ```sh
 npm run lint
 npm run typecheck
-npm test
 npm run build
+npm test
 NODE_ENV=production npm start
 ```
 
-The server defaults to loopback. Set `HOST` and `PORT` only when configuring an authorized hosting runtime. No hosting registration, deployment or event submission is part of this repository workflow.
+Tests use synthetic data and mocked upstream responses. Tests cover provenance, null amounts, currency uncertainty, claims, deal/offer separation, stale/error states, private HTTP boundaries, JSON/SSE transport, idempotent ingestion, CSV merges, update review flags, concurrency and rate limiting. Build before testing to include the browser-bundle exclusion check.
 
-## Private evidence import
+The server defaults to loopback. Configure `HOST`, `PORT` and persistent private storage only for an authorized hosting runtime. Runtime `tsx` is currently supplied by the normal development dependency installation; do not install with `--omit=dev` for this start command.
 
-The upstream ingestion owner supplies a normalized snapshot matching `snapshotSchema` in `src/model.ts`. Keep all account records, research and identifiers outside this public repository.
+## Live signal ownership
 
-```sh
-CRM_DATA_DIR=/private/runtime/directory npx tsx server/import.ts /private/path/snapshot.json
-CRM_DATA_DIR=/private/runtime/directory npm run dev
-```
+**Live polling is disabled by default.** Work remains the upstream ingestion owner until explicit transfer. Private import is not a live MCP connection.
 
-The importer validates the entire snapshot, rejects dangling source references and atomically replaces the private file. It does not print records. Default runtime storage is ignored `.private/`; set an external persistent directory for a deployed instance. Never put snapshots in `src/`, `public/` or `dist/`. Raw upstream formats are deliberately not guessed or automatically mapped.
+After exclusive ownership is transferred, configure `AQ_TOKEN` in a server runtime secret manager and `CRM_INGESTION_OWNER=this-process`. Never put a token in chat, command arguments, Git, logs or a frontend-prefixed variable. The private bundle must contain the verified `get_signals` tool declaration. Only then does the server schedule one signal check every 65 seconds. No note writes are scheduled or exposed.
 
-See [private import contract](docs/IMPORT_CONTRACT.md) for per-deal preparation. Each source has a stable source ID, title, original locator, retrieval time and excerpt. Every non-unknown statement and known monetary value needs valid source references. Amounts distinguish booked value, pipeline value and projections. Conflicts are represented as two separate sourced statements. Action dates are explicitly proposed; unknown owners/dates remain null. Synthetic fixtures exist only inside the test suite.
+All callers with the token must share the same persistent coordinator directory. Local filesystem locks protect multiple processes on one shared filesystem; multiple hosts need an external coordinator before use. Failed requests reserve the same 61-second budget. A leftover lock after a crash requires operator review; it is never expired automatically.
 
-## Upstream boundary
+Signals merge by account and original signal ID. Usage rows merge by account + week_start + dock_id; requests by account + request_id, with deterministic local keys for requests lacking an ID. Source provenance is retained. Repeated content does not rewrite the snapshot or duplicate rows. Changed content updates the event ledger, current signals and deterministic usage analysis; the reviewed editorial brief is flagged for reconsideration. This does not silently invent a new customer commitment or automatically rewrite human-reviewed actions.
 
-`server/adapter.ts` is a server-only transport with **no HTTP proxy route** and no registered tool schemas. Work remains the ingestion owner. The running app makes **zero upstream calls**, even if a runtime token exists.
+JSON-RPC text content is decoded before schema validation. Both JSON and SSE responses are supported. The transport has no browser proxy route. The HTTP API is read-only; private files and server source paths are blocked.
 
-Only after explicit ownership transfer, configure `AQ_TOKEN` through the runtime secret manager and `CRM_INGESTION_OWNER=this-process`. Never paste credentials in chat, source, shell arguments, browser variables, logs or Git. Verify exact upstream schemas before registering any `VerifiedTool`. All processes using the credential must share one persistent coordinator directory; separate machines require a shared coordinator service before use. External callers cannot share this local limiter, so ownership must be exclusive.
+## Interpretation boundaries
 
-Every upstream attempt reserves 61 seconds on disk before network I/O. Concurrent calls fail closed; cooldown is preserved across restarts. Failed requests consume budget. Read responses are validated and cached durably; refresh is explicit. A crash leaving `upstream.lock` requires operator inspection before removal; never auto-expire a lock while a request may be active. The adapter allows only an explicitly initiated `write_note` when a verified write schema exists. There is no public note-writing route or UI yet.
+Existing annual contract value is renewal exposure, separate from new booked value. No open, declined or won offer automatically becomes revenue. Missing currencies stay missing. Account-level offers are not assigned to deals without a source link.
 
-## Current limits
+Scenario dates, discovery-export dates, import times and unknown source retrieval times remain separate. Future scenario dates are allowed. A local import does not claim to be a fresh upstream retrieval. Source older-than-one-day warnings use known retrieval times and cache age; missing retrieval metadata remains explicitly unknown.
 
-The first build is a source-safe local implementation. Real account snapshots, exact upstream schemas and ingestion ownership transfer are pending. The UI does not infer missing people, IDs, values, outcomes or deadlines. Evidence older than 24 hours is marked stale; this is a review threshold, not a claim that the records have changed. Auth and hosted access decisions are deferred until deployment is authorized. The local API returns account summaries and selected excerpts, so only deploy after deciding who may read those records.
-
-See [implementation guide](docs/IMPLEMENTATION_GUIDE.md) and [design decisions](docs/THINKING.md).
+Hosting, access control, a walkthrough recording and final event submission remain separate steps. The local API exposes selected private evidence to anyone allowed to reach that server; decide authorized readership before deploying. See [thinking document](docs/THINKING.md) for the design rationale.

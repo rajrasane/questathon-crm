@@ -8,8 +8,8 @@ export const statementSchema = z.object({
 }).strict().refine(v => v.kind === 'unknown' || v.sourceIds.length > 0, 'Non-unknown statements require source evidence');
 const moneySchema = z.object({
   amount: z.number().nonnegative().nullable(), currency: z.string().regex(/^[A-Z]{3}$/).nullable(),
-  basis: z.enum(['booked', 'pipeline', 'projection', 'unknown']), sourceIds: refs,
-}).strict().refine(v => v.amount === null ? v.basis === 'unknown' : v.currency !== null && v.sourceIds.length > 0 && v.basis !== 'unknown', 'Known money requires currency, basis and evidence');
+  basis: z.enum(['booked', 'contracted', 'pipeline', 'projection', 'unknown']), sourceIds: refs,
+}).strict().refine(v => v.amount === null ? v.basis === 'unknown' : v.sourceIds.length > 0 && v.basis !== 'unknown', 'Known money requires currency, basis and evidence');
 // Normalized presentation schema; upstream records are mapped only after schema verification.
 export const offerSchema = z.object({
   title:z.string().min(1), sourceIds:refs.min(1),
@@ -26,6 +26,13 @@ export type Deal = z.infer<typeof dealSchema>;
 export const accountSchema = z.object({
   key: z.string().min(1), name: z.string().min(1), nameSourceIds: refs.min(1),
   summary: statementSchema,
+  facts:z.array(statementSchema).optional(),
+  usageInsights:z.array(statementSchema).optional(),
+  offers:z.array(offerSchema).optional(),
+  existingContract:moneySchema.optional(),
+  contacts:z.array(z.object({id:z.string(),name:z.string(),role:z.string(),relationship:z.string(),sourceIds:refs.min(1)})).optional(),
+  signals:z.array(z.object({id:z.string(),date:z.string(),title:z.string(),summary:statementSchema})).optional(),
+  analysisNeedsReview:z.boolean().optional(),
   stage: statementSchema,
   dealValue: moneySchema, bookValue: moneySchema,
   deals:z.array(dealSchema).nullable().default(null),
@@ -36,8 +43,8 @@ export const accountSchema = z.object({
   contradictions:z.array(z.object({topic:z.string().min(1),left:statementSchema,right:statementSchema,resolution:z.string().min(1)}).strict()),
 }).strict();
 export const snapshotSchema = z.object({
-  version:z.literal(1), generatedAt:z.iso.datetime(),
-  sources:z.array(z.object({id:z.string().min(1),title:z.string().min(1),locator:z.string().min(1),retrievedAt:z.iso.datetime(),excerpt:z.string().min(1)}).strict()),
+  version:z.literal(1), generatedAt:z.iso.datetime(), scenarioAsOf:z.string().optional(),
+  sources:z.array(z.object({id:z.string().min(1),title:z.string().min(1),locator:z.string().min(1),retrievedAt:z.iso.datetime().nullable(),importedAt:z.iso.datetime().optional(),eventDate:z.string().optional(),account:z.string().optional(),origin:z.enum(['discovery','paperwork','signal','file']).optional(),excerpt:z.string().min(1)}).strict()),
   accounts:z.array(accountSchema),
 }).strict().superRefine((data,ctx)=>{
   const ids = new Set(data.sources.map(s=>s.id));
@@ -64,9 +71,10 @@ export type Snapshot = z.infer<typeof snapshotSchema>;
 export type Account = z.infer<typeof accountSchema>;
 export type Statement = z.infer<typeof statementSchema>;
 export type Source = Snapshot['sources'][number];
-export type WorkspaceResponse = {state:'unconfigured'|'ready'|'partial'|'stale'|'error'; snapshot:Snapshot|null; message:string; loadedAt:string|null};
+export type WorkspaceResponse = {state:'unconfigured'|'ready'|'partial'|'stale'|'error'; snapshot:Snapshot|null; message:string; loadedAt:string|null; ingestion?:{mode:'cached'|'live'|'unconfigured';lastCheckedAt:string|null;lastChangedAt:string|null;error:string|null}};
 export function money(value:Account['dealValue']):string {
-  if(value.amount === null || !value.currency)return 'Unknown';
+  if(value.amount === null)return 'Unknown';
+  if(!value.currency)return `${value.amount.toLocaleString('en')} (currency unknown)`;
   try { return new Intl.NumberFormat('en',{style:'currency',currency:value.currency,maximumFractionDigits:2}).format(value.amount); }
   catch {return `${value.currency} ${value.amount.toLocaleString('en')}`;}
 }

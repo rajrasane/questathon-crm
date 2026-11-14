@@ -12,7 +12,7 @@ export async function atomicWrite(path:string,value:unknown) {
 export async function readWorkspace(dir=privateDir,now=Date.now()):Promise<WorkspaceResponse> {
   try {
     const snapshot=snapshotSchema.parse(JSON.parse(await readFile(join(dir,'snapshot.json'),'utf8')));
-    const oldest=Math.min(Date.parse(snapshot.generatedAt),...snapshot.sources.map(s=>Date.parse(s.retrievedAt)));
+    const oldest=Math.min(Date.parse(snapshot.generatedAt),...snapshot.sources.filter(s=>s.retrievedAt!==null).map(s=>Date.parse(s.retrievedAt!)));
     const stale=now-oldest>24*60*60*1000;
     const partial=snapshot.accounts.length===0 || snapshot.accounts.some(a=>!completeness(a));
     return {state:stale?'stale':partial?'partial':'ready',snapshot,loadedAt:new Date(now).toISOString(),message:stale?'Evidence is over 24 hours old. Confirm time-sensitive details.':partial?'Some decisions still need evidence. Unknowns are shown explicitly.':'Evidence loaded from the private snapshot.'};

@@ -30,6 +30,16 @@ export function decodeToolResult(result:unknown):unknown {
   if(first.type!=='text' || first.text===undefined)throw new Error('Expected JSON text in the first MCP content block');
   try {return JSON.parse(first.text);} catch {throw new Error('MCP content is not valid JSON');}
 }
+export async function readRpcResponse(response:Response):Promise<unknown> {
+ if(!response.headers.get('content-type')?.includes('text/event-stream'))return response.json();
+ const reader=response.body?.getReader();if(!reader)throw new Error('Empty event stream');
+ const decoder=new TextDecoder();let buffer='';let bytes=0;
+ const parseEvent=(frame:string):unknown|undefined=>{const data=frame.split('\n').filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trimStart()).join('\n');if(!data)return undefined;const value=JSON.parse(data);return value && value.jsonrpc==='2.0' && ('result' in value || 'error' in value)?value:undefined;};
+ try {while(true){const {value,done}=await reader.read();if(value){bytes+=value.byteLength;if(bytes>8*1024*1024)throw new Error('Event response exceeds limit');buffer+=decoder.decode(value,{stream:true}).replace(/\r\n/g,'\n');}
+  let boundary:number;while((boundary=buffer.indexOf('\n\n'))>=0){const frame=buffer.slice(0,boundary);buffer=buffer.slice(boundary+2);const parsed=parseEvent(frame);if(parsed!==undefined)return parsed;}
+  if(done){const parsed=parseEvent(buffer);if(parsed!==undefined)return parsed;throw new Error('No JSON-RPC response in event stream');}
+ }}finally{await reader.cancel().catch(()=>{});}
+}
 export type VerifiedTool = {name:string; input:z.ZodType; output:z.ZodType; mode:'read'|'write'};
 export class McpAdapter {
   private coordinator:Coordinator;
@@ -51,7 +61,7 @@ export class McpAdapter {
     return this.coordinator.run(async()=>{
       const response=await this.request(endpoint,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json, text/event-stream',Authorization:`Bearer ${token}`},body:JSON.stringify({jsonrpc:'2.0',id:key,method:'tools/call',params:{name,arguments:input}}),signal:AbortSignal.timeout(25_000)});
       if(!response.ok)throw new Error(`Upstream request failed (${response.status}); no automatic retry`);
-      const envelope=z.object({jsonrpc:z.literal('2.0'),id:z.unknown(),result:z.unknown().optional(),error:z.unknown().optional()}).parse(await response.json());
+      const envelope=z.object({jsonrpc:z.literal('2.0'),id:z.unknown(),result:z.unknown().optional(),error:z.unknown().optional()}).parse(await readRpcResponse(response));
       if(envelope.error || (envelope.result as {isError?:boolean})?.isError)throw new Error('Upstream returned a tool error');
       const data=tool.output.parse(decodeToolResult(envelope.result));
       const result={data,retrievedAt:new Date().toISOString(),cached:false};

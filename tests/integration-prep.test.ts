@@ -45,3 +45,10 @@ test('claim rendering stays visibly distinct from reported and verified',()=>{
   assert.ok(html.includes(`class="label ${kind}">${kind}</span>`));assert.match(html,/test-source/);
  }
 });
+test('JSON and SSE transports produce the same RPC envelope',async()=>{
+ const {readRpcResponse}=await import('../server/adapter.js');
+ const envelope={jsonrpc:'2.0',id:'synthetic',result:{content:[{type:'text',text:'{}'}]}};
+ assert.deepEqual(await readRpcResponse(new Response(JSON.stringify(envelope),{headers:{'Content-Type':'application/json'}})),envelope);
+ assert.deepEqual(await readRpcResponse(new Response(`: keepalive\n\nevent: message\ndata: ${JSON.stringify(envelope)}\n\n`,{headers:{'Content-Type':'text/event-stream'}})),envelope);
+ await assert.rejects(readRpcResponse(new Response('data: not-json\n\n',{headers:{'Content-Type':'text/event-stream'}})));
+});
