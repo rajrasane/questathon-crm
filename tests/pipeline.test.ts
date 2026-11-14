@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { bundleSchema, parseCsv } from '../server/raw.js';
@@ -28,10 +28,14 @@ test('import repeats do not rewrite snapshots; invalid data preserves last valid
  const b=fixture();assert.equal((await persistBundle(b,dir)).changed,true);const first=await readFile(join(dir,'snapshot.json'),'utf8');assert.equal((await persistBundle(b,dir)).changed,false);assert.equal(await readFile(join(dir,'snapshot.json'),'utf8'),first);
  b.accounts.accounts[0].opportunities[0].evidence=['missing'];await assert.rejects(persistBundle(b,dir));assert.equal(await readFile(join(dir,'snapshot.json'),'utf8'),first);
 }));
-test('new signals invalidate editorial review without overwriting discovery outcomes',()=>temp(async dir=>{
- const b=fixture();const analysis={basedOnSignals:digest([]),accounts:{TEST:{summary:{text:'Synthetic interpretation',kind:'interpretation' as const,sourceIds:['test-fact']}}}};
- await persistBundle(b,dir,analysis);assert.equal((await readWorkspace(dir)).snapshot?.accounts[0].analysisNeedsReview,false);
- await persistBundle(mergeSignals(b,events()),dir);const s=(await readWorkspace(dir)).snapshot!;assert.equal(s.accounts[0].analysisNeedsReview,true);assert.equal(s.accounts[0].deals?.[0].stage.text,'identified');assert.equal(s.accounts[0].signals?.length,1);
+test('legacy private analysis cannot override automatic analysis or discovery outcomes',()=>temp(async dir=>{
+ const b=fixture();const analysis={basedOnSignals:digest([]),accounts:{TEST:{summary:{text:'Synthetic legacy override',kind:'interpretation',sourceIds:['test-fact']}}}};
+ await writeFile(join(dir,'analysis.json'),JSON.stringify(analysis));
+ await persistBundle(b,dir);
+ assert.notEqual((await readWorkspace(dir)).snapshot?.accounts[0].summary.text,'Synthetic legacy override');
+ await persistBundle(mergeSignals(b,events()),dir);const s=(await readWorkspace(dir)).snapshot!;
+ assert.equal(s.accounts[0].deals?.[0].stage.text,'identified');assert.equal(s.accounts[0].signals?.length,1);
+ assert.equal(s.accounts[0].actions[0].title,'Investigate the measured usage stoppage');
 }));
 test('polling is gated and uses the same global rate budget; mocked update reaches snapshot',()=>temp(async dir=>{
  const previousOwner=process.env.CRM_INGESTION_OWNER,previousToken=process.env.AQ_TOKEN;let calls=0;

@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { accountSchema, snapshotSchema, type Account, type Snapshot, type Source, type Statement } from '../src/model.js';
+import { deriveAnalysis } from './analyze.js';
 import { bundleSchema, paperworkSchema, parseCsv, type Bundle } from './raw.js';
 function canonical(value:unknown):unknown {
  if(Array.isArray(value))return value.map(canonical);
@@ -11,8 +12,7 @@ export const digest=(value:unknown)=>createHash('sha256').update(JSON.stringify(
 export const unknownMoney=()=>({amount:null,currency:null,basis:'unknown' as const,sourceIds:[] as string[]});
 const stated=(text:string,sourceIds:string[],kind:Statement['kind']='reported'):Statement=>({text,sourceIds,kind});
 export function paperworkId(account:string,path:string){return `local:paperwork:${account}:${path}`;}
-export type PrivateAnalysis={basedOnSignals:string;accounts:Record<string,Partial<Account>>};
-export function normalizeBundle(input:unknown,importedAt=new Date().toISOString(),analysis?:PrivateAnalysis):Snapshot {
+export function normalizeBundle(input:unknown,importedAt=new Date().toISOString()):Snapshot {
  const bundle=bundleSchema.parse(input);const sources:Source[]=[];
  const source=(id:string,title:string,locator:string,excerpt:unknown,account:string,origin:Source['origin'],eventDate?:string)=>{
   sources.push({id,title,locator,excerpt:typeof excerpt==='string'?excerpt:JSON.stringify(excerpt,null,2),account,origin,retrievedAt:null,importedAt,...eventDate?{eventDate}:{}});return id;
@@ -21,6 +21,8 @@ export function normalizeBundle(input:unknown,importedAt=new Date().toISOString(
  for(const pack of paperwork)for(const r of pack.records)source(paperworkId(pack.account,r.path),r.path,JSON.stringify({tool:'get_paperwork_record',arguments:{account:pack.account,path:r.path},localCompositeId:true}),r.text ?? r.data ?? r,pack.account,'paperwork');
  for(const file of bundle.accounts.files){const loaded=bundle.fetched_files?.find(f=>f.id===file.id) || (bundle.roi_file?.id===file.id?bundle.roi_file:undefined);source(file.id,file.title,JSON.stringify({tool:'get_file',arguments:{id:file.id},contentAvailable:!!loaded}),loaded?.text || `File reference only: ${file.path}. Content not loaded.`,file.account||'','file');}
  const signals=bundle.signals?.signals || [];
+ const scenarioAsOf=[bundle.accounts.exported_at.slice(0,10),...signals.map(s=>s.dated)].sort().at(-1)!;
+ const tables=mergeTables(bundle);
  for(const signal of signals){source(`local:signal:${signal.account}:${signal.id}`,signal.title,JSON.stringify({tool:'get_signals',signalId:signal.id,account:signal.account}),signal,signal.account,'signal',signal.dated);for(const r of signal.records)source(`local:signal-record:${signal.account}:${signal.id}:${r.path}`,r.path,JSON.stringify({tool:'get_signals',signalId:signal.id,path:r.path,localCompositeId:true}),r.text??r.data??r,signal.account,'signal',signal.dated);}
  const accounts:Account[]=bundle.accounts.accounts.map(a=>{
   const accountRef=source(`local:discovery:${a.id}`,a.name,JSON.stringify({tool:'get_my_accounts',accountId:a.id,exportedAt:bundle.accounts.exported_at}),{id:a.id,name:a.name,official_story:a.official_story,opportunities:a.opportunities},a.id,'discovery');
@@ -36,20 +38,11 @@ export function normalizeBundle(input:unknown,importedAt=new Date().toISOString(
   const mapped:Account=accountSchema.parse({key:a.id,name:a.name,nameSourceIds:[accountRef],summary:a.official_story?stated(a.official_story,[accountRef],'claim'):stated('Account brief not supplied',[],'unknown'),stage:stated(`${a.opportunities.filter(o=>o.stage==='agreed').length} agreed of ${a.opportunities.length} discovered opportunities`,[accountRef]),dealValue:unknownMoney(),bookValue:unknownMoney(),existingContract:profileData.success?{amount:profileData.data.renewal.annual_value,currency:profileData.data.currency,basis:'contracted',sourceIds:[paperworkId(a.id,'profile.json'),...pack?.records.some(r=>r.path==='contract.txt')?[paperworkId(a.id,'contract.txt')]:[]]}:unknownMoney(),facts,contacts:a.stakeholders.map(p=>({id:p.id,name:p.name,role:p.role,relationship:p.relationship,sourceIds:[p.id]})),signals:accountSignals,
    deals:a.opportunities.map(o=>({key:o.id,title:o.title,sourceIds:[o.id,...o.evidence],stage:stated(o.stage,[o.id]),worthUpTo:o.worth_up_to===null || o.worth_up_to===undefined?unknownMoney():{amount:o.worth_up_to,currency:null,basis:'pipeline',sourceIds:[o.id]},blockers:o.blocker?stated(`${o.blocker.text} (${o.blocker.status})`,[o.id]):null,deadline:o.deadline?`${o.deadline.text} · discovery minute ${o.deadline.minute}`:null,deadlineSourceIds:o.deadline?[o.id]:[],offers:null})),
    offers:a.offers.map(o=>({title:o.title,sourceIds:[o.id],status:o.status,statusSourceIds:[o.id],value:{amount:o.value,currency:null,basis:'pipeline',sourceIds:[o.id]}})),stakeholders:[],actions:[],risks:accountSignals.map(s=>({statement:s.summary,deadline:null,deadlineSourceIds:[]})),unknowns:[{question:'Who decides, pays and can block?',resolveBy:'Confirm authority directly; a contact title or relationship is not proof of authority.'}],contradictions:[]});
-  const enrichment=analysis?.accounts[a.id];
-  if(enrichment){
-   for(const field of ['summary','stakeholders','actions','risks','unknowns','contradictions'] as const) {
-    if(enrichment[field]!==undefined)Object.assign(mapped,{[field]:enrichment[field]});
-   }
-  }
-  mapped.analysisNeedsReview=!!analysis && analysis.basedOnSignals!==digest(signals);
-  // Signals and deal states always come from current records, never a stale editorial overlay.
-  mapped.signals=accountSignals;
   mapped.usageInsights=usageInsights(bundle,a.id);
+  Object.assign(mapped,deriveAnalysis(mapped,a,sources,tables.requests,profile?.data,scenarioAsOf));
   return mapped;
  });
- const dated=signals.map(s=>s.dated).sort();
- return snapshotSchema.parse({version:1,generatedAt:importedAt,scenarioAsOf:dated.at(-1)||bundle.accounts.exported_at.slice(0,10),sources,accounts});
+ return snapshotSchema.parse({version:1,generatedAt:importedAt,scenarioAsOf,sources,accounts});
 }
 export type MergedRow={account:string;row:Record<string,string>;sourceIds:string[]};
 export function mergeTables(bundle:Bundle):{usage:MergedRow[];requests:MergedRow[]} {
@@ -62,7 +55,7 @@ export function mergeTables(bundle:Bundle):{usage:MergedRow[];requests:MergedRow
   }
  }
  for(const value of Object.values(bundle)){const pack=paperworkSchema.safeParse(value);if(pack.success)for(const r of pack.data.records)if(r.text)add(pack.data.account,r.path,r.text,paperworkId(pack.data.account,r.path));}
- for(const s of bundle.signals?.signals||[])for(const r of s.records)if(r.text)add(s.account,r.path,r.text,`local:signal-record:${s.account}:${s.id}:${r.path}`);
+ for(const s of [...bundle.signals?.signals||[]].sort((a,b)=>a.dated.localeCompare(b.dated)||a.id.localeCompare(b.id)))for(const r of s.records)if(r.text)add(s.account,r.path,r.text,`local:signal-record:${s.account}:${s.id}:${r.path}`);
  return {usage:[...usage.values()],requests:[...requests.values()]};
 }
 export function usageInsights(bundle:Bundle,account:string):Statement[] {
@@ -76,7 +69,7 @@ export function usageInsights(bundle:Bundle,account:string):Statement[] {
  const results=[stated(`${rows.length} unique dock-week rows cover week starts ${dates[0]} to ${dates.at(-1)} across ${docks.length} docks. ${idle.length} docks have no flights in these rows. Coverage does not establish physical site mapping or continuous adoption.`,refs,'interpretation')];
  if(dates.length>=4){const recent=dates.slice(-4);const consecutive=recent.every((date,i)=>i===0 || Date.parse(date)-Date.parse(recent[i-1])===7*86400000);
   if(consecutive)for(const dock of docks){const subset=recent.map(date=>rows.find(r=>r.row.dock_id===dock && r.row.week_start===date));if(subset.some(r=>!r))continue;const valid=subset as MergedRow[];
-   const baseline=total(valid.slice(0,2));if(baseline>0 && total(valid.slice(2))===0 && valid.slice(2).every(r=>r.row.days_online==='7'))results.push(stated(`${dock}: ${baseline} flights over week starts ${recent[0]} and ${recent[1]}, then zero over ${recent[2]} and ${recent[3]} with seven days online in each later row. Cause and physical site are unconfirmed.`,[...new Set(valid.flatMap(r=>r.sourceIds))],'interpretation'));
+   const baseline=total(valid.slice(0,2));if(valid.slice(0,2).every(r=>Number(r.row.flights)>0) && total(valid.slice(2))===0 && valid.slice(2).every(r=>r.row.days_online==='7'))results.push(stated(`${dock}: ${baseline} flights over week starts ${recent[0]} and ${recent[1]}, then zero over ${recent[2]} and ${recent[3]} with seven days online in each later row. Cause and physical site are unconfirmed.`,[...new Set(valid.flatMap(r=>r.sourceIds))],'interpretation'));
   }
  }
  return results;

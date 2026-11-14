@@ -2,7 +2,7 @@ import { readFile, mkdir, rmdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { atomicWrite, privateDir } from './storage.js';
 import { bundleSchema, signalsSchema, type Bundle } from './raw.js';
-import { normalizeBundle, mergeTables, digest, type PrivateAnalysis } from './normalize.js';
+import { normalizeBundle, mergeTables, digest } from './normalize.js';
 import { McpAdapter, RateLimitError } from './adapter.js';
 import { z } from 'zod';
 export async function readOptional(path:string):Promise<unknown|undefined> {try{return JSON.parse(await readFile(path,'utf8'));}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return undefined;throw error;}}
@@ -12,11 +12,11 @@ export function mergeSignals(bundle:Bundle,incoming:unknown):Bundle {
  return {...bundle,signals:{signals:[...byId.values()].sort((a,b)=>a.dated.localeCompare(b.dated)||a.id.localeCompare(b.id))}};
 }
 export async function rebuild(bundleInput:unknown,dir=privateDir) {
- const bundle=bundleSchema.parse(bundleInput);const analysis=await readOptional(join(dir,'analysis.json')) as PrivateAnalysis|undefined;
- const fingerprint=digest({normalizerVersion:2,bundle,analysis});
+ const bundle=bundleSchema.parse(bundleInput);
+ const fingerprint=digest({normalizerVersion:3,bundle});
  const prior=await readOptional(join(dir,'ledger.json')) as {fingerprint?:string;events?:Array<{account:string;id:string;hash:string}>}|undefined;
  if(prior?.fingerprint===fingerprint)return {changed:false};
- const importedAt=new Date().toISOString();const snapshot=normalizeBundle(bundle,importedAt,analysis);const tables=mergeTables(bundle);
+ const importedAt=new Date().toISOString();const snapshot=normalizeBundle(bundle,importedAt);const tables=mergeTables(bundle);
  // Snapshot is the atomic visible commit; ledger records only successful reanalysis.
  await atomicWrite(join(dir,'merged-tables.json'),tables);
  await atomicWrite(join(dir,'snapshot.json'),snapshot);
@@ -25,16 +25,14 @@ export async function rebuild(bundleInput:unknown,dir=privateDir) {
  await atomicWrite(join(dir,'ledger.json'),{fingerprint,analyzedAt:importedAt,events:[...events.values()]});
  return {changed:true};
 }
-export async function persistBundle(input:unknown,dir=privateDir,providedAnalysis?:PrivateAnalysis) {
+export async function persistBundle(input:unknown,dir=privateDir) {
  await mkdir(dir,{recursive:true,mode:0o700});
  const lock=join(dir,'snapshot.lock');
  try{await mkdir(lock);}catch{throw new Error('Another writer owns the snapshot lock');}
  try {
  const bundle=bundleSchema.parse(input);
  // Validate before replacing authoritative private input.
- const analysis=providedAnalysis || await readOptional(join(dir,'analysis.json')) as PrivateAnalysis|undefined;
- normalizeBundle(bundle,new Date().toISOString(),analysis);
- if(providedAnalysis)await atomicWrite(join(dir,'analysis.json'),providedAnalysis);
+ normalizeBundle(bundle);
  await atomicWrite(join(dir,'bundle.json'),bundle);return await rebuild(bundle,dir);
  } finally {await rmdir(lock);}
 }
@@ -60,4 +58,15 @@ export async function ingestionStatus(dir=privateDir) {
  const live=process.env.CRM_INGESTION_OWNER==='this-process' && !!process.env.AQ_TOKEN;
  const previous=await readOptional(join(dir,'poll-status.json')) as {lastCheckedAt?:string;lastChangedAt?:string;error?:string}|undefined;
  return {mode:live?'live' as const:'cached' as const,lastCheckedAt:previous?.lastCheckedAt||null,lastChangedAt:previous?.lastChangedAt||null,error:live?previous?.error||null:null};
+}
+
+// Recompute cached records after a code update without consuming an MCP request.
+export async function reanalyzeCached(dir=privateDir) {
+ await mkdir(dir,{recursive:true,mode:0o700});
+ const lock=join(dir,'snapshot.lock');
+ try{await mkdir(lock);}catch{throw new Error('Another writer owns the snapshot lock');}
+ try {
+  const bundle=await readOptional(join(dir,'bundle.json'));
+  return bundle===undefined?{changed:false}:await rebuild(bundle,dir);
+ } finally {await rmdir(lock);}
 }

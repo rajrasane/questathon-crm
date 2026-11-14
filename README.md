@@ -33,13 +33,15 @@ npm run live:status
 
 The status command reports the last successful signal check. During baseline fetching it may have no signal-check timestamp yet. A timestamp does not prove the server process is still running; keep the server terminal open. A missing credential or unavailable upstream leaves the app in an honest waiting/partial/error state, never a demo-data fallback.
 
-Existing validated caches continue to work. Removing the old manual-import commands does not delete a user's existing account data or private reviewed analysis.
+Existing validated caches continue to work. Startup regenerates outdated analysis from those records without a network call. Legacy private analysis files are neither used nor deleted.
 
 ## Interpretation and updates
 
 Every factual statement needs resolvable source evidence. Claims, told/reported statements, verified records and interpretations retain distinct labels. Existing annual contract value is separate from new booked value. Missing monetary values remain unknown; missing currencies are never assumed. Open, declined or won offers do not automatically count as revenue.
 
-Signals merge by original account/event ID; usage by account + week_start + dock_id; requests by account + request_id. Unidentified requests receive explicitly local deterministic keys. Repeated content is a no-op. New content refreshes signals and usage analysis and flags reviewed editorial conclusions for reconsideration. This does not automatically rewrite a human-reviewed action plan.
+Signals merge by original account/event ID; usage by account + week_start + dock_id; requests by account + request_id. Unidentified requests receive explicitly local deterministic keys. Repeated content is a no-op. New content automatically regenerates stakeholder assessments, ranked actions, risks, unknowns and supported contradictions. Closing a request removes it from the proposed action list. No manual analysis file is required.
+
+The deterministic analysis rules treat historical signatories, billing recipients and operational contacts as evidence to investigate, not proof of current authority. They prioritize urgent requests, succession gaps, sustained usage stoppages, commercial requests and documented evidence conflicts. Owners and dates are proposals; unknown authority, unrecorded deadlines and missing value remain unknown. The rules only recognize explicitly supported patterns and do not claim exhaustive interpretation of every document. See [analysis behavior](docs/ANALYSIS.md).
 
 Known source retrieval times, local cache timestamps and simulated scenario dates remain separate. Future scenario dates are allowed. A local cache rebuild does not claim a fresh upstream fetch.
 
