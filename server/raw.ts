@@ -1,7 +1,7 @@
 import { z } from 'zod';
 const record=z.object({path:z.string().min(1),kind:z.string(),text:z.string().optional(),data:z.unknown().optional()}).passthrough();
 export const signalsSchema=z.object({signals:z.array(z.object({id:z.string(),account:z.string(),dated:z.string(),title:z.string(),summary:z.string(),records:z.array(record),set_off_at:z.string().optional()}).passthrough())});
-export const exportSchema=z.object({format:z.literal('account-quest-v2-export/1'),exported_at:z.iso.datetime(),accounts:z.array(z.object({
+export const exportSchema=z.object({format:z.literal('account-quest-v2-export/1'),exported_at:z.iso.datetime({offset:true}),accounts:z.array(z.object({
  id:z.string(),name:z.string(),official_story:z.string().optional(),
  stakeholders:z.array(z.object({id:z.string(),name:z.string(),role:z.string(),relationship:z.string()})),
  facts:z.array(z.object({id:z.string(),text:z.string(),said_by:z.string(),status:z.enum(['claim','told','verified']),verified_by:z.string().optional(),learned_at_minute:z.number()})),

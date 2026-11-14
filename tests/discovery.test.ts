@@ -65,3 +65,8 @@ test('released drops load through their own tools without discarding morning acc
  merged.accounts.files=[{id:'synthetic-file',title:'Synthetic file',path:'synthetic.txt',account:'SYNTH-NEW'}];
  assert.deepEqual(pendingFetch(merged),{name:'get_new_account_file',args:{account:'SYNTH-NEW',file_id:'synthetic-file'}});
 });
+
+test('drop export accepts explicit ISO timezone offsets without rewriting source time',()=>{
+ const data={...exported('SYNTH-OFFSET'),exported_at:'2030-01-01T16:00:00+05:30'};
+ assert.equal(mergeDiscovery(null,data).accounts.exported_at,data.exported_at);
+});

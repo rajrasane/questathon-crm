@@ -204,7 +204,10 @@ export async function hostedStep(
         : "get_signals",
       args: {},
     };
-    const response = await request(
+    const cachedDrop = task.name === "get_new_account" ? await redis.command(["GET", "{questathon}:drop-response"]) : null;
+    const cachedExport = typeof cachedDrop === "string" ? exportSchema.safeParse(JSON.parse(cachedDrop)) : null;
+    const reuseDrop = cachedExport?.success && cachedExport.data.accounts.some(a=>a.id===task.args.account);
+    const response = reuseDrop ? new Response(JSON.stringify({result:{content:[{type:"text",text:cachedDrop}]}})) : await request(
       "https://questathon.aihackerscollective.com/api/public/mcp",
       {
         method: "POST",
