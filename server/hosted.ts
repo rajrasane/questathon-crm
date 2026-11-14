@@ -11,6 +11,7 @@ import {
   type WorkspaceResponse,
 } from "../src/model.js";
 import {
+  accessSchema,
   bundleSchema,
   exportSchema,
   paperworkSchema,
@@ -148,6 +149,9 @@ export async function hostedWorkspace(
   }
 }
 const schemas: Record<string, z.ZodType> = {
+  whoami: accessSchema,
+  get_new_account: exportSchema,
+  get_new_account_file: fileSchema,
   get_my_accounts: exportSchema,
   get_all_paperwork: paperworkSchema,
   get_file: fileSchema,
@@ -196,7 +200,7 @@ export async function hostedStep(
         previous?.discoveryUnknowns || "",
         Date.now(),
       )
-        ? "get_my_accounts"
+        ? "whoami"
         : "get_signals",
       args: {},
     };
@@ -224,22 +228,28 @@ export async function hostedStep(
       .parse(await readRpcResponse(response));
     if (envelope.error) throw Error("Upstream tool error");
     const decoded = task.name === "tools/list" ? envelope.result : decodeToolResult(envelope.result);
-    if (task.name === "whoami" || task.name === "tools/list") {
+    if (diagnostic === task.name && (task.name === "whoami" || task.name === "tools/list")) {
       await redis.command(["SET", "{questathon}:diagnostic-result", JSON.stringify(decoded)]);
       await redis.command(["DEL", "{questathon}:diagnostic"]);
       return { status: "ok", resource: task.name, changed: false };
     }
     const data = schemas[task.name].parse(decoded);
     let bundle: Bundle;
-    if (task.name === "get_my_accounts")
+    if (task.name === "whoami")
+      bundle = {...previous!.bundle, released_accounts: accessSchema.parse(data).new_accounts};
+    else if (task.name === "get_new_account") {
+      bundle = mergeDiscovery(previous!.bundle, data);
+      bundle.dropAccountIds = [...new Set([...(previous!.bundle.dropAccountIds as string[] || []), ...exportSchema.parse(data).accounts.map(a=>a.id)])];
+    }
+    else if (task.name === "get_my_accounts")
       bundle = mergeDiscovery(previous?.bundle || null, data);
     else if (task.name === "get_all_paperwork") {
       const pack = paperworkSchema.parse(data);
       if (pack.account !== task.args.account) throw Error("Account mismatch");
       bundle = { ...previous!.bundle, [`paperwork_${pack.account}`]: pack };
-    } else if (task.name === "get_file") {
+    } else if (task.name === "get_file" || task.name === "get_new_account_file") {
       const file = fileSchema.parse(data);
-      if (file.id !== task.args.id) throw Error("File mismatch");
+      if (file.id !== (task.args.id || task.args.file_id)) throw Error("File mismatch");
       bundle = {
         ...previous!.bundle,
         fetched_files: [...(previous!.bundle.fetched_files || []), file],
@@ -268,11 +278,11 @@ export async function hostedStep(
     await publish({
       bundle,
       discoveryCheckedAt:
-        task.name === "get_my_accounts"
+        (task.name === "get_my_accounts" || task.name === "whoami")
           ? Date.now()
           : (previous?.discoveryCheckedAt ?? null),
       discoveryUnknowns:
-        task.name === "get_my_accounts"
+        (task.name === "get_my_accounts" || task.name === "whoami")
           ? unknownAccountSignature(bundle)
           : previous?.discoveryUnknowns || "",
       snapshot,

@@ -161,13 +161,12 @@ test("a surprise third account is discovered without refetching existing paperwo
       const params = JSON.parse(String(init?.body)).params;
       calls.push({ name: params.name, account: params.arguments.account });
       const data =
-        params.name === "get_my_accounts"
+        params.name === "whoami" ? {new_accounts:expanded?[{id:"SYNTH-Z",name:"Synthetic released account"}]:[]} : params.name === "get_new_account" ? {...discovery,accounts:[account("SYNTH-Z")],files:[]} : params.name === "get_my_accounts"
           ? {
               ...discovery,
               accounts: [
                 account("SYNTH-X"),
                 account("SYNTH-Y"),
-                ...(expanded ? [account("SYNTH-Z")] : []),
               ],
               files: [],
             }
@@ -189,6 +188,9 @@ test("a surprise third account is discovered without refetching existing paperwo
     assert.equal((await readWorkspace(dir)).snapshot?.accounts.length, 2);
     expanded = true;
     now += 10 * 60000;
+    await ingestionStep(dir, request, () => now);
+    assert.equal((await readWorkspace(dir)).snapshot?.accounts.length, 2);
+    now += 65000;
     await ingestionStep(dir, request, () => now);
     assert.equal((await readWorkspace(dir)).snapshot?.accounts.length, 3);
     const count = calls.length;

@@ -20,3 +20,5 @@ export function parseCsv(text:string):Record<string,string>[] {
  return rows.map(values=>Object.fromEntries(headers.map((h,i)=>[h,values[i]||''])));
 }
 export const fileSchema=z.object({id:z.string(),name:z.string(),text:z.string()});
+
+export const accessSchema=z.object({new_accounts:z.array(z.object({id:z.string(),name:z.string()}).passthrough()).default([])}).passthrough();

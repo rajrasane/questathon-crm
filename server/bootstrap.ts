@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { z } from "zod";
 import { McpAdapter, RateLimitError } from "./adapter.js";
 import {
+  accessSchema,
   exportSchema,
   paperworkSchema,
   fileSchema,
@@ -18,6 +19,9 @@ import { atomicWrite, privateDir } from "./storage.js";
 import { readOptional, persistBundle, pollOnce } from "./pipeline.js";
 // Tool names and inputs were verified against the supplied tools/list, not guessed.
 const tools = [
+  {name:"whoami",input:z.object({}).strict(),output:accessSchema,mode:"read" as const},
+  {name:"get_new_account",input:z.object({account:z.string()}).strict(),output:exportSchema,mode:"read" as const},
+  {name:"get_new_account_file",input:z.object({account:z.string(),file_id:z.string()}).strict(),output:fileSchema,mode:"read" as const},
   {
     name: "get_my_accounts",
     input: z.object({}).strict(),
@@ -41,6 +45,9 @@ export function pendingFetch(
   bundle: Bundle | null,
 ): { name: string; args: Record<string, string> } | null {
   if (!bundle) return { name: "get_my_accounts", args: {} };
+  const released = bundle.released_accounts as {id:string;name:string}[] | undefined;
+  const missing = released?.find(a => !bundle.accounts.accounts.some(known=>known.id===a.id));
+  if(missing) return {name:"get_new_account",args:{account:missing.id}};
   const packs = Object.values(bundle).flatMap((v) => {
     const p = paperworkSchema.safeParse(v);
     return p.success ? [p.data] : [];
@@ -53,7 +60,9 @@ export function pendingFetch(
       !bundle.fetched_files?.some((f) => f.id === file.id) &&
       bundle.roi_file?.id !== file.id
     )
-      return { name: "get_file", args: { id: file.id } };
+      return (bundle.dropAccountIds as string[] | undefined)?.includes(file.account || "")
+        ? {name:"get_new_account_file",args:{account:file.account!,file_id:file.id}}
+        : { name: "get_file", args: { id: file.id } };
   return null;
 }
 export async function ingestionStep(
@@ -87,14 +96,20 @@ export async function ingestionStep(
         discovery?.unknowns || "",
         now(),
       )
-        ? { name: "get_my_accounts", args: {} }
+        ? { name: "whoami", args: {} }
         : null);
     if (!task) return await pollOnce(dir, request, now);
     const adapter = new McpAdapter(dir, tools, request, now);
     const result = await adapter.call(task.name, task.args, {
-      refresh: task.name === "get_my_accounts",
+      refresh: task.name === "get_my_accounts" || task.name === "whoami",
     });
-    if (task.name === "get_my_accounts")
+    if(task.name === "whoami") bundle={...bundle!,released_accounts:accessSchema.parse(result.data).new_accounts};
+    else if(task.name === "get_new_account") {
+      const ids=bundle!.dropAccountIds as string[] || [];
+      bundle=mergeDiscovery(bundle,result.data);
+      bundle.dropAccountIds=[...new Set([...ids,...exportSchema.parse(result.data).accounts.map(a=>a.id)])];
+    }
+    else if (task.name === "get_my_accounts")
       bundle = mergeDiscovery(bundle, result.data);
     else if (task.name === "get_all_paperwork") {
       const pack = paperworkSchema.parse(result.data);
@@ -103,14 +118,14 @@ export async function ingestionStep(
       bundle = { ...bundle!, [`paperwork_${pack.account}`]: pack };
     } else {
       const file = fileSchema.parse(result.data);
-      if (file.id !== task.args.id) throw new Error("File identity mismatch");
+      if (file.id !== (task.args.id || task.args.file_id)) throw new Error("File identity mismatch");
       bundle = {
         ...bundle!,
         fetched_files: [...(bundle!.fetched_files || []), file],
       };
     }
     await persistBundle(bundle, dir);
-    if (task.name === "get_my_accounts")
+    if (task.name === "get_my_accounts" || task.name === "whoami")
       await atomicWrite(join(dir, "discovery-status.json"), {
         checkedAt: now(),
         unknowns: unknownAccountSignature(bundle),

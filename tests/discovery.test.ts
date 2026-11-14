@@ -53,3 +53,15 @@ test("unrecognized signal account triggers discovery early, while repeated uncha
   assert.equal(discoveryDue(b, 1000, "SYNTH-Z", 2000), false);
   assert.equal(discoveryDue(b, 1000, "SYNTH-Z", 601000), true);
 });
+
+test('released drops load through their own tools without discarding morning accounts', async()=>{
+ const {pendingFetch}=await import('../server/bootstrap.js');
+ const b=mergeDiscovery(null,exported('SYNTH-X'));
+ b.released_accounts=[{id:'SYNTH-NEW',name:'Synthetic released account'}];
+ assert.deepEqual(pendingFetch(b),{name:'get_new_account',args:{account:'SYNTH-NEW'}});
+ const merged=mergeDiscovery(b,exported('SYNTH-NEW'));
+ merged.dropAccountIds=['SYNTH-NEW'];
+ for(const a of merged.accounts.accounts)merged['paperwork_'+a.id]={account:a.id,records:[]};
+ merged.accounts.files=[{id:'synthetic-file',title:'Synthetic file',path:'synthetic.txt',account:'SYNTH-NEW'}];
+ assert.deepEqual(pendingFetch(merged),{name:'get_new_account_file',args:{account:'SYNTH-NEW',file_id:'synthetic-file'}});
+});
