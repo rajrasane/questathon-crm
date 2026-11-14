@@ -75,7 +75,7 @@ test("hosted state persists across instances; shared cooldown and failed calls c
     );
     const body = JSON.parse(String(options?.body));
     return response(
-      body.params.name === "get_my_accounts"
+      body.params.name === "whoami" ? {new_accounts:[]} : body.params.name === "get_my_accounts"
         ? discovery
         : body.params.name === "get_all_paperwork"
           ? { account: "SYNTH", records: [] }
@@ -98,6 +98,8 @@ test("hosted state persists across instances; shared cooldown and failed calls c
     redis.now += 61000;
     await hostedStep(redis, request);
     assert.equal(calls, 3);
+    redis.now += 61000;
+    await hostedStep(redis, request);
     const first = JSON.parse(redis.state!).snapshot.generatedAt;
     redis.now += 61000;
     const same = await hostedStep(redis, request);
@@ -173,7 +175,7 @@ test("hosted changed signals reanalyze once and preserve event versions", async 
   const request: typeof fetch = async (_url, options) => {
     const name = JSON.parse(String(options?.body)).params.name;
     return response(
-      name === "get_my_accounts"
+      name === "whoami" ? {new_accounts:[]} : name === "get_my_accounts"
         ? discovery
         : name === "get_all_paperwork"
           ? { account: "SYNTH", records: [] }
@@ -194,7 +196,7 @@ test("hosted changed signals reanalyze once and preserve event versions", async 
   try {
     process.env.CRM_INGESTION_OWNER = "hosted";
     process.env.AQ_TOKEN = "synthetic-only";
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       redis.now = i * 61000;
       await hostedStep(redis, request);
     }

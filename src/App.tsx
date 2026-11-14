@@ -216,7 +216,7 @@ export function App() {
               </p>
             </div>
             <details className="sync-details">
-              <summary>{response?.ingestion?.error ? "MCP · check failed" : response?.ingestion?.mode !== "live" ? "MCP · cached only" : !response.ingestion.lastCheckedAt ? "MCP · loading records" : Date.now() - Date.parse(response.ingestion.lastCheckedAt) > 6 * 60_000 ? "MCP · check overdue" : "MCP · connected"}</summary>
+              <summary>{response?.ingestion?.error ? "MCP · check failed" : response?.ingestion?.mode !== "live" ? "MCP · cached only" : response.ingestion.pendingResource || !response.ingestion.lastCheckedAt ? "MCP · loading records" : Date.now() - Date.parse(response.ingestion.lastCheckedAt) > 6 * 60_000 ? "MCP · check overdue" : "MCP · connected"}</summary>
               <div className="sync-popover">
                 <strong>{response?.message || "Reading the workspace."}</strong>
                 <dl>

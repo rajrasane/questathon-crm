@@ -233,6 +233,7 @@ export async function hostedStep(
       await redis.command(["DEL", "{questathon}:diagnostic"]);
       return { status: "ok", resource: task.name, changed: false };
     }
+    if (task.name === "get_new_account") await redis.command(["SET", "{questathon}:drop-response", JSON.stringify(decoded)]);
     const data = schemas[task.name].parse(decoded);
     let bundle: Bundle;
     if (task.name === "whoami")
