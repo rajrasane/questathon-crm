@@ -8,7 +8,7 @@ Keep the existing React interface and validated account model. Build the client 
 
 Use one Redis-compatible store accessible over authenticated HTTPS for snapshots, source records, normalized rows, event versions, poll status and the shared rate coordinator. Upstash Redis is a candidate because it exposes an HTTP REST API suitable for serverless functions. Availability, limits and cost must be checked in the actual account before creation. No paid plan or automatic upgrade is authorized by this plan.
 
-Store all credentials as server runtime secrets: upstream credential, database URL/token and a distinct trigger secret. None belongs in the browser, build output, repository, deployment URL or logs. Import the existing credential-free private runtime package through an authenticated administrative operation; never commit it or expose an anonymous upload/proxy endpoint.
+Store all credentials as server runtime secrets: upstream credential, database URL/token and a distinct trigger secret. None belongs in the browser, build output, repository, deployment URL or logs. Fetch the initial baseline through MCP after the runtime ownership handover and store it privately; never commit it or expose an anonymous upload/proxy endpoint.
 
 ## Changes required before deployment
 
@@ -23,7 +23,7 @@ Store all credentials as server runtime secrets: upstream credential, database U
 - Select and approve the storage/trigger combination and any cost before provisioning.
 - Implement and test both storage adapters and the serverless handlers locally using synthetic fixtures.
 - Create or reuse exactly one Vercel project connected to the feature branch. Configure secrets through the signed-in session. Do not create a duplicate of the unrelated existing Sites project.
-- Seed private storage and deploy with hosted MCP ingestion disabled. Confirm the populated workspace is viewable in a private browser window and that raw files, credentials and write routes cannot be accessed.
+- Deploy with hosted MCP ingestion disabled; migrate the existing private cache through a secured administrative path or initialize it through MCP only after the handover. Confirm the populated workspace is viewable in a private browser window and that raw files, credentials and write routes cannot be accessed.
 - Stop the laptop poller and receive explicit acknowledgement. Record its final request time, then wait at least 61 seconds after completion before activating the hosted owner. Exactly one runtime may call MCP.
 - Perform one read-only signal check through the global coordinator. Verify success status, stable record counts and no duplicate ledger entries. Activate the approved periodic trigger only after this check.
 - Keep final event submission separate. Return the actual verified URL and remaining limitations.

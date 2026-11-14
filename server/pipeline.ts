@@ -25,10 +25,10 @@ export async function rebuild(bundleInput:unknown,dir=privateDir) {
  await atomicWrite(join(dir,'ledger.json'),{fingerprint,analyzedAt:importedAt,events:[...events.values()]});
  return {changed:true};
 }
-export async function importBundle(input:unknown,dir=privateDir,providedAnalysis?:PrivateAnalysis) {
+export async function persistBundle(input:unknown,dir=privateDir,providedAnalysis?:PrivateAnalysis) {
  await mkdir(dir,{recursive:true,mode:0o700});
- const lock=join(dir,'import.lock');
- try{await mkdir(lock);}catch{throw new Error('Another importer owns the snapshot lock');}
+ const lock=join(dir,'snapshot.lock');
+ try{await mkdir(lock);}catch{throw new Error('Another writer owns the snapshot lock');}
  try {
  const bundle=bundleSchema.parse(input);
  // Validate before replacing authoritative private input.
@@ -38,22 +38,15 @@ export async function importBundle(input:unknown,dir=privateDir,providedAnalysis
  await atomicWrite(join(dir,'bundle.json'),bundle);return await rebuild(bundle,dir);
  } finally {await rmdir(lock);}
 }
-export async function importRuntime(input:unknown,dir=privateDir) {
- const wrapped=z.object({bundle:bundleSchema,analysis:z.object({basedOnSignals:z.string(),accounts:z.record(z.string(),z.unknown())})}).safeParse(input);
- return wrapped.success?importBundle(wrapped.data.bundle,dir,wrapped.data.analysis as PrivateAnalysis):importBundle(input,dir);
-}
-export async function pollOnce(dir=privateDir,request:typeof fetch=fetch) {
+export async function pollOnce(dir=privateDir,request:typeof fetch=fetch,now=Date.now) {
  if(process.env.CRM_INGESTION_OWNER!=='this-process' || !process.env.AQ_TOKEN)return {mode:'cached' as const,changed:false};
  await mkdir(dir,{recursive:true,mode:0o700});const lock=join(dir,'poll.lock');
  try{await mkdir(lock);}catch{return {mode:'live' as const,changed:false};}
  try {
   const bundle=bundleSchema.parse(await readOptional(join(dir,'bundle.json')));
-  const declaration=bundle.tools?.tools.find(t=>t.name==='get_signals');
-  const expected={type:'object',properties:{},additionalProperties:false};
-  if(!declaration || digest(declaration.inputSchema)!==digest(expected))throw new Error('Signal input schema must be verified before polling');
-  const adapter=new McpAdapter(dir,[{name:'get_signals',input:z.object({}).strict(),output:signalsSchema,mode:'read'}],request);
+  const adapter=new McpAdapter(dir,[{name:'get_signals',input:z.object({}).strict(),output:signalsSchema,mode:'read'}],request,now);
   const result=await adapter.call('get_signals',{}, {refresh:true});
-  const merged=mergeSignals(bundle,result.data);const resultState=await importBundle(merged,dir);
+  const merged=mergeSignals(bundle,result.data);const resultState=await persistBundle(merged,dir);
   const old=await readOptional(join(dir,'poll-status.json')) as {lastChangedAt?:string}|undefined;
   await atomicWrite(join(dir,'poll-status.json'),{mode:'live',lastCheckedAt:new Date().toISOString(),lastChangedAt:resultState.changed?new Date().toISOString():old?.lastChangedAt||null,error:null});
   return {mode:'live' as const,...resultState};
@@ -62,13 +55,6 @@ export async function pollOnce(dir=privateDir,request:typeof fetch=fetch) {
   await atomicWrite(join(dir,'poll-status.json'),{...old,mode:'live',error:error instanceof RateLimitError?'Shared upstream cooldown; waiting for next cycle.':'Signal check failed. Retaining the last validated snapshot.'});
   return {mode:'live' as const,changed:false};
  } finally {await rmdir(lock);}
-}
-export function startSignalPolling(dir=privateDir) {
- if(process.env.CRM_INGESTION_OWNER!=='this-process' || !process.env.AQ_TOKEN)return ()=>{};
- let stopped=false;let timer:ReturnType<typeof setTimeout>|undefined;
- const tick=async()=>{try{await pollOnce(dir);}catch{console.error('Signal polling unavailable; retrying on next interval.');}finally{if(!stopped){timer=setTimeout(()=>void tick(),65_000);timer.unref();}}};
- // Delay first request too; never create a burst on server startup.
- timer=setTimeout(()=>void tick(),65_000);timer.unref();return ()=>{stopped=true;if(timer)clearTimeout(timer);};
 }
 export async function ingestionStatus(dir=privateDir) {
  const live=process.env.CRM_INGESTION_OWNER==='this-process' && !!process.env.AQ_TOKEN;

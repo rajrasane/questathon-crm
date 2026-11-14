@@ -43,7 +43,7 @@ export async function readRpcResponse(response:Response):Promise<unknown> {
 export type VerifiedTool = {name:string; input:z.ZodType; output:z.ZodType; mode:'read'|'write'};
 export class McpAdapter {
   private coordinator:Coordinator;
-  constructor(private dir:string,private tools:VerifiedTool[],private request:typeof fetch=fetch){this.coordinator=new Coordinator(dir);}
+  constructor(private dir:string,private tools:VerifiedTool[],private request:typeof fetch=fetch,now=Date.now){this.coordinator=new Coordinator(dir,now);}
   async call(name:string,args:unknown,options:{refresh?:boolean;explicitNoteWrite?:boolean}={}) {
     if(process.env.CRM_INGESTION_OWNER!=='this-process')throw new Error('Ingestion is disabled: ownership has not been transferred');
     const token=process.env.AQ_TOKEN;

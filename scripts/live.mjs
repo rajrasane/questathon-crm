@@ -1,17 +1,9 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 
 if (!stdin.isTTY || !stdout.isTTY) {
  console.error('Start this command in your own interactive terminal. Do not pipe a credential.');
- process.exit(1);
-}
-try {
- await readFile(resolve(process.env.CRM_DATA_DIR || '.private', 'bundle.json'));
-} catch {
- console.error('Import the private runtime bundle before starting live mode.');
  process.exit(1);
 }
 const rl=createInterface({input:stdin,output:stdout});
@@ -39,10 +31,10 @@ function hiddenToken() {
   stdin.on('data',receive);
  });
 }
-let token;
-try {token=await hiddenToken();}catch{console.error('Cancelled.');process.exit(1);}
+let token=process.env.AQ_TOKEN;
+try {if(!token)token=await hiddenToken();}catch{console.error('Cancelled.');process.exit(1);}
 if(!token){console.error('No token entered. Live mode was not started.');process.exit(1);}
-console.log('Starting live mode. The first signal check waits 65 seconds to allow the previous caller’s cooldown.');
+console.log('Starting live mode. The first MCP fetch waits 65 seconds to allow the previous caller’s cooldown.');
 console.log('Use npm run live:status in another terminal to verify the result.');
 const child=spawn(process.execPath,['--import','tsx','server/index.ts'],{
  stdio:'inherit',env:{...process.env,AQ_TOKEN:token,CRM_INGESTION_OWNER:'this-process'},

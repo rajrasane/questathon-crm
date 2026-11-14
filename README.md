@@ -1,85 +1,65 @@
 # Account Brief · Questathon CRM
 
-An evidence-backed account workspace built with React, TypeScript, Vite and a small Express server. It separates claims, told/reported statements, verified evidence, interpretations and unknowns. Private records never belong in this public repository.
+An evidence-backed CRM for account situations, individual deals, stakeholder authority, ranked actions, risks and consequential unknowns. React + TypeScript, Vite and a small Express server. Account records and credentials stay outside this public repository.
 
-## Run locally
+## Start locally
 
-Requires Node 22+ and npm.
+Requires Node 22.9+ and npm. Stop any other runtime using the same MCP token before enabling ingestion.
 
 ```sh
-git switch feat/account-brief
 npm ci
+npm run setup
+```
+
+Open the newly created `.env.local` in your editor and set `AQ_TOKEN` to your token. Keep `CRM_INGESTION_OWNER=this-process` only on the selected runtime. Then:
+
+```sh
 npm run dev
 ```
 
-Open **http://127.0.0.1:3000**. Without imported private data, the app displays `Sources pending`. The browser refreshes its server cache every 15 seconds; browser tabs never call MCP.
+Open **http://localhost:3000**. No JSON download or import is needed.
 
-## Load your private handoff
+`.env.local` is ignored by Git, denied by the dev file server and created with owner-only permissions. The setup command never overwrites an existing file. The token is read only by the Node server and never exposed to Vite client variables. Do not use a `VITE_` prefix or commit the token. An optional `npm run live` launcher also supports hidden terminal entry if the environment file has no token.
 
-Download the separately supplied private runtime JSON to your computer, then run:
+## First fetch, then cache
 
-```sh
-npx tsx server/import-bundle.ts /absolute/path/to/questathon-runtime.json
-```
+After a 65-second handover safety delay, the sole server runtime fetches the discovery export. Subsequent cycles fetch each account's bulk paperwork and each referenced file once. Every attempt reserves the same persistent 61-second upstream budget before network I/O, including failures. Initial loading takes several minutes and publishes partial validated records as they arrive.
 
-The importer supports the original raw bundle and a prepared `{bundle, analysis}` runtime package. The prepared package includes the reviewed account brief, proposed actions and contradictions; a raw bundle alone shows source-backed discovery and explicit analysis gaps. Private state goes into ignored `.private/`. You can use an external directory via `CRM_DATA_DIR` on both import and server commands.
-
-The app updates from disk on refresh; no rebuild is needed. Stop and restart the dev process after pulling server-code changes. Do not put a private file into `src/`, `public/`, `dist/` or any tracked directory. No credential is needed to preview a private cached import.
-
-The normalized-snapshot importer remains available for custom integrations:
+Fetched records, snapshots, row merges and event history are stored in ignored `.private/`, or the external persistent directory selected by `CRM_DATA_DIR`. Restarts reuse the cache and resume missing fetches. Once the baseline is complete, the server checks `get_signals` every 65 seconds. Browser refreshes read only the local snapshot and do not consume upstream requests.
 
 ```sh
-npx tsx server/import.ts /absolute/private/path/snapshot.json
+npm run live:status
 ```
 
-See [private import contract](docs/IMPORT_CONTRACT.md) for the presentation schema and source mapping.
+The status command reports the last successful signal check. During baseline fetching it may have no signal-check timestamp yet. A timestamp does not prove the server process is still running; keep the server terminal open. A missing credential or unavailable upstream leaves the app in an honest waiting/partial/error state, never a demo-data fallback.
 
-## Checks and production build
+Existing validated caches continue to work. Removing the old manual-import commands does not delete a user's existing account data or private reviewed analysis.
+
+## Interpretation and updates
+
+Every factual statement needs resolvable source evidence. Claims, told/reported statements, verified records and interpretations retain distinct labels. Existing annual contract value is separate from new booked value. Missing monetary values remain unknown; missing currencies are never assumed. Open, declined or won offers do not automatically count as revenue.
+
+Signals merge by original account/event ID; usage by account + week_start + dock_id; requests by account + request_id. Unidentified requests receive explicitly local deterministic keys. Repeated content is a no-op. New content refreshes signals and usage analysis and flags reviewed editorial conclusions for reconsideration. This does not automatically rewrite a human-reviewed action plan.
+
+Known source retrieval times, local cache timestamps and simulated scenario dates remain separate. Future scenario dates are allowed. A local cache rebuild does not claim a fresh upstream fetch.
+
+## Checks
 
 ```sh
 npm run lint
 npm run typecheck
 npm run build
 npm test
+```
+
+Tests use isolated synthetic records and mocked MCP responses, including empty-cache initialization, restart/resume, provenance, null values, transport decoding, cooldowns, concurrency, idempotent updates and private HTTP boundaries. Build first to include the browser-bundle exclusion check.
+
+Production Node start:
+
+```sh
 NODE_ENV=production npm start
 ```
 
-Tests use synthetic data and mocked upstream responses. Tests cover provenance, null amounts, currency uncertainty, claims, deal/offer separation, stale/error states, private HTTP boundaries, JSON/SSE transport, idempotent ingestion, CSV merges, update review flags, concurrency and rate limiting. Build before testing to include the browser-bundle exclusion check.
+Use one persistent coordinator directory across every process sharing a token. Multiple hosts require external shared coordination before use. Crash-leftover locks fail closed and require operator review. No public proxy, note-write route or automatic note writer is provided.
 
-The server defaults to loopback. Configure `HOST`, `PORT` and persistent private storage only for an authorized hosting runtime. Runtime `tsx` is currently supplied by the normal development dependency installation; do not install with `--omit=dev` for this start command.
-
-## Live signal ownership
-
-**Live polling is disabled by default.** Work remains the upstream ingestion owner until explicit transfer. Private import is not a live MCP connection.
-
-After exclusive ownership is transferred, configure `AQ_TOKEN` in a server runtime secret manager and `CRM_INGESTION_OWNER=this-process`. Never put a token in chat, command arguments, Git, logs or a frontend-prefixed variable. The private bundle must contain the verified `get_signals` tool declaration. Only then does the server schedule one signal check every 65 seconds. No note writes are scheduled or exposed.
-
-All callers with the token must share the same persistent coordinator directory. Local filesystem locks protect multiple processes on one shared filesystem; multiple hosts need an external coordinator before use. Failed requests reserve the same 61-second budget. A leftover lock after a crash requires operator review; it is never expired automatically.
-
-Signals merge by account and original signal ID. Usage rows merge by account + week_start + dock_id; requests by account + request_id, with deterministic local keys for requests lacking an ID. Source provenance is retained. Repeated content does not rewrite the snapshot or duplicate rows. Changed content updates the event ledger, current signals and deterministic usage analysis; the reviewed editorial brief is flagged for reconsideration. This does not silently invent a new customer commitment or automatically rewrite human-reviewed actions.
-
-JSON-RPC text content is decoded before schema validation. Both JSON and SSE responses are supported. The transport has no browser proxy route. The HTTP API is read-only; private files and server source paths are blocked.
-
-## Interpretation boundaries
-
-Existing annual contract value is renewal exposure, separate from new booked value. No open, declined or won offer automatically becomes revenue. Missing currencies stay missing. Account-level offers are not assigned to deals without a source link.
-
-Scenario dates, discovery-export dates, import times and unknown source retrieval times remain separate. Future scenario dates are allowed. A local import does not claim to be a fresh upstream retrieval. Source older-than-one-day warnings use known retrieval times and cache age; missing retrieval metadata remains explicitly unknown.
-
-Hosting, access control, a walkthrough recording and final event submission remain separate steps. The local API exposes selected private evidence to anyone allowed to reach that server; decide authorized readership before deploying. See [thinking document](docs/THINKING.md) for the design rationale.
-
-## Start live mode on your laptop
-
-Stop the current dev server and ensure Work has stopped all MCP requests. Then run:
-
-```sh
-npm run live
-```
-
-The launcher requires explicit confirmation that every other caller has stopped, then accepts the token through hidden terminal input. The token is passed only to the server process environment; it is not written to a file or shell history. After the initial 65-second cooldown, the server checks signals on the shared rate budget. Keep this terminal running. In another terminal:
-
-```sh
-npm run live:status
-```
-
-A successful check timestamp is evidence that a real check completed. A prior check record alone does not prove that the server is currently running. Keep this local process as the sole caller until an explicit later handover. Stopping the server ends this process's polling.
+Vercel deployment is still pending: local filesystem storage and persistent timers need a serverless-compatible replacement. See [deployment plan](docs/VERCEL_PLAN.md), [data contract](docs/DATA_CONTRACT.md), and [thinking document](docs/THINKING.md). UI redesign and final submission are separate steps.

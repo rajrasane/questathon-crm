@@ -18,6 +18,6 @@ export async function readWorkspace(dir=privateDir,now=Date.now()):Promise<Works
     return {state:stale?'stale':partial?'partial':'ready',snapshot,loadedAt:new Date(now).toISOString(),message:stale?'Evidence is over 24 hours old. Confirm time-sensitive details.':partial?'Some decisions still need evidence. Unknowns are shown explicitly.':'Evidence loaded from the private snapshot.'};
   } catch(error) {
     const absent=(error as NodeJS.ErrnoException).code==='ENOENT';
-    return {state:absent?'unconfigured':'error',snapshot:null,loadedAt:null,message:absent?'Waiting for the private account handoff. No live account records are loaded.':'The private snapshot could not be validated. No unverified data is displayed.'};
+    return {state:absent?'unconfigured':'error',snapshot:null,loadedAt:null,message:absent?'Waiting for the first MCP fetch. Configure the server token and start the sole ingestion runtime.':'The private snapshot could not be validated. No unverified data is displayed.'};
   }
 }

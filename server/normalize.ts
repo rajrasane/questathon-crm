@@ -19,7 +19,7 @@ export function normalizeBundle(input:unknown,importedAt=new Date().toISOString(
  };
  const paperwork=Object.values(bundle).flatMap(value=>{const p=paperworkSchema.safeParse(value);return p.success?[p.data]:[];});
  for(const pack of paperwork)for(const r of pack.records)source(paperworkId(pack.account,r.path),r.path,JSON.stringify({tool:'get_paperwork_record',arguments:{account:pack.account,path:r.path},localCompositeId:true}),r.text ?? r.data ?? r,pack.account,'paperwork');
- for(const file of bundle.accounts.files){const loaded=bundle.roi_file?.id===file.id?bundle.roi_file:undefined;source(file.id,file.title,JSON.stringify({tool:'get_file',arguments:{id:file.id},contentAvailable:!!loaded}),loaded?.text || `File reference only: ${file.path}. Content not loaded.`,file.account||'','file');}
+ for(const file of bundle.accounts.files){const loaded=bundle.fetched_files?.find(f=>f.id===file.id) || (bundle.roi_file?.id===file.id?bundle.roi_file:undefined);source(file.id,file.title,JSON.stringify({tool:'get_file',arguments:{id:file.id},contentAvailable:!!loaded}),loaded?.text || `File reference only: ${file.path}. Content not loaded.`,file.account||'','file');}
  const signals=bundle.signals?.signals || [];
  for(const signal of signals){source(`local:signal:${signal.account}:${signal.id}`,signal.title,JSON.stringify({tool:'get_signals',signalId:signal.id,account:signal.account}),signal,signal.account,'signal',signal.dated);for(const r of signal.records)source(`local:signal-record:${signal.account}:${signal.id}:${r.path}`,r.path,JSON.stringify({tool:'get_signals',signalId:signal.id,path:r.path,localCompositeId:true}),r.text??r.data??r,signal.account,'signal',signal.dated);}
  const accounts:Account[]=bundle.accounts.accounts.map(a=>{

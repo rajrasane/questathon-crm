@@ -4,14 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx server/index.ts",
+    "dev": "node --env-file-if-exists=.env.local --import tsx server/index.ts",
     "build": "tsc --noEmit && vite build",
-    "start": "tsx server/index.ts",
+    "start": "node --env-file-if-exists=.env.local --import tsx server/index.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "tsx --test tests/*.test.ts",
-    "live": "node scripts/live.mjs",
-    "live:status": "node scripts/live-status.mjs"
+    "live": "node --env-file-if-exists=.env.local scripts/live.mjs",
+    "live:status": "node --env-file-if-exists=.env.local scripts/live-status.mjs",
+    "setup": "node scripts/setup-env.mjs"
   },
   "dependencies": {
     "express": "^5.1.0",
