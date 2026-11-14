@@ -1,51 +1,137 @@
 # Account Brief · Questathon CRM
 
-An evidence-backed CRM for account situations, individual deals, stakeholder authority, ranked actions, risks and consequential unknowns. React + TypeScript, Vite and a small Express server. Account records and credentials stay outside this public repository.
+**Understand an account, inspect the evidence, and choose the next conversation.**
 
-## Start locally
+Account Brief turns scattered account records into a practical handover: commercial context, stakeholder authority, three ranked next actions, risks, and open questions. It was built for the Questathon software round. The app reads the official MCP service, stores what it fetches, and updates its analysis as new signals arrive.
 
-Requires Node 22.9+ and npm. Stop any other runtime using the same MCP token before enabling ingestion.
+**[Open the deployed app](https://questathon-crm-blue.vercel.app)** · [Thinking behind the build](docs/THINKING.md) · [Three-minute walkthrough](docs/WALKTHROUGH.md)
+
+## What you can do
+
+| View | What it helps you understand |
+| --- | --- |
+| Portfolio | Compare accounts, search the workspace, filter an opportunity-stage chart, and find each account’s first proposed conversation. |
+| Account overview | Separate existing annual contract value, opportunity value and newly booked value; inspect ranked actions, incoming signals, risks and unknowns. |
+| Visuals | Explore weekly flight activity with device coverage and source links; inspect the recorded opportunity stages. Missing weeks are not plotted as zero. |
+| Deals | Review each opportunity’s stage, value, blockers, deadline and evidence. Account-level offers keep their own status. |
+| People | Distinguish decision authority, budget, operations and dependencies, including what still needs confirmation. |
+| Evidence | Search supporting records and open source drawers from individual facts, actions and chart points. |
+| Connection status | See the last successful signal check, completed ingestion step, pending work and cache timestamp. |
+
+The interface reveals supporting detail on demand. It does not present every source document on the overview.
+
+## Run locally
+
+Requires **Node.js 22.9 or later** and npm.
 
 ```sh
+git clone https://github.com/rajrasane/questathon-crm.git
+cd questathon-crm
 npm ci
 npm run setup
 ```
 
-Open the newly created `.env.local` in your editor and set `AQ_TOKEN` to your token. Keep `CRM_INGESTION_OWNER=this-process` only on the selected runtime. Then:
+The setup command creates a Git-ignored `.env.local` with owner-only permissions and never overwrites an existing file. Set its values in your editor:
+
+```dotenv
+AQ_TOKEN=your-token-here
+CRM_INGESTION_OWNER=this-process
+CRM_DATA_DIR=.private
+PORT=3000
+```
+
+**Production currently owns MCP ingestion.** To enable a laptop caller with the same token, first disable the hosted scheduler/owner, finish any in-flight request, and wait at least 61 seconds. Local and hosted storage do not share a rate-limit coordinator; never enable both callers.
 
 ```sh
 npm run dev
 ```
 
-Open **http://localhost:3000**. No JSON download or import is needed.
+Open **http://localhost:3000**. The server fetches records through MCP; there is no JSON download or manual-import step. Initial loading takes several minutes because requests are serialized. Partial validated records appear while supporting files load.
 
-`.env.local` is ignored by Git, denied by the dev file server and created with owner-only permissions. The setup command never overwrites an existing file. The token is read only by the Node server and never exposed to Vite client variables. Do not use a `VITE_` prefix or commit the token. An optional `npm run live` launcher also supports hidden terminal entry if the environment file has no token.
+For UI work without upstream calls, leave `AQ_TOKEN` empty or run with ownership disabled:
 
-## First fetch, then cache
+```sh
+CRM_INGESTION_OWNER=disabled npm run dev
+```
 
-After a 65-second handover safety delay, the sole server runtime fetches the discovery export. Subsequent cycles fetch each account's bulk paperwork and each referenced file once. Every attempt reserves the same persistent 61-second upstream budget before network I/O, including failures. Initial loading takes several minutes and publishes partial validated records as they arrive.
+An existing local cache remains viewable. A fresh clone correctly shows an unconfigured state; no private account data or fabricated customer fixtures are bundled.
 
-Fetched records, snapshots, row merges and event history are stored in ignored `.private/`, or the external persistent directory selected by `CRM_DATA_DIR`. Restarts reuse the cache and resume missing fetches. Once the baseline is complete, the server checks `get_signals` every 65 seconds. Browser refreshes read only the local snapshot and do not consume upstream requests.
+## How the data moves
+
+```mermaid
+flowchart LR
+  MCP[Official MCP service] --> Fetch[Server fetch and validation]
+  Trigger[One selected scheduler] --> Budget[Shared request budget]
+  Budget --> Fetch
+  Fetch --> Store[Private persistent store]
+  Store --> Analysis[Normalize, merge and analyze]
+  Analysis --> Snapshot[Validated snapshot and provenance]
+  Snapshot --> API[Read-only workspace API]
+  API --> UI[Portfolio and account views]
+```
+
+1. Fetch the initial account export, bulk paperwork and referenced files once, then reuse the stored baseline.
+2. Discover released accounts through `whoami`, then fetch their packs and files with the released-account tools. There is no fixed two-account limit.
+3. Check `get_signals`; merge events by account and stable signal ID, usage by device/week, and requests by their row keys.
+4. Recompute the brief when content changes. Repeated identical inputs preserve the snapshot and do not duplicate event history.
+5. Validate source references before publishing. A failed request or invalid response retains the last validated snapshot.
+
+The transport supports JSON and SSE responses and decodes MCP text content before validating tool results. Browser refreshes call only `/api/workspace`; they do **not** make MCP requests. The browser also refreshes the stored workspace every 15 seconds.
+
+| Runtime | Persistence and cadence |
+| --- | --- |
+| Local Node server | Ignored `.private/` directory, or `CRM_DATA_DIR`. A 65-second startup delay and ingestion cycle; each attempted request reserves a persistent 61-second budget. Restarts resume missing fetches. |
+| Vercel production | Private Upstash Redis store and one protected QStash invocation every two minutes. Atomic Redis lease/cooldown coordinates function instances. Each invocation makes at most one upstream call. |
+
+Baseline loading takes priority over signal checks. After loading, released-account discovery runs on the next available cycle when its ten-minute interval is due. Failures also consume the upstream request budget. Vercel has no persistent background timer; the external scheduler invokes it.
+
+## What the analysis means
+
+Analysis is deterministic and rule-based. AI assisted the implementation; runtime recommendations do not require an LLM service.
+
+- **Evidence stays attached.** Facts, identities, amounts, deadlines and chart points link to supporting records. Claims, told/reported statements, verified evidence and interpretations remain distinguishable.
+- **Money stays honest.** Existing contracts, potential opportunities, projections and newly booked value remain separate. Unknown amounts are not zero, currencies are not invented, and an accepted offer is not automatically recognized revenue.
+- **Authority requires evidence.** A title, past signature or friendly contact does not prove current purchasing or budget authority.
+- **Actions are proposals.** Owners and dates are suggested follow-ups, with a reason and intended outcome. They are not customer commitments or completed tasks.
+- **Disagreement is visible.** Supported contradictions remain side by side. Unknowns include a way to resolve them.
+- **Time has context.** Scenario dates, upstream retrieval times and local cache timestamps are separate. Rebuilding a cache does not imply a fresh upstream fetch.
+
+See [analysis rules and their limits](docs/ANALYSIS.md) and the [data contract](docs/DATA_CONTRACT.md).
+
+## Read the status correctly
+
+“Evidence gaps” describes the account’s unresolved information. It is separate from connection health.
+
+- **Connected:** a recent signal check succeeded.
+- **Loading supporting records:** baseline work remains, or no successful signal check has yet been recorded.
+- **Check overdue / needs attention:** a check is old or failed; inspect the saved timestamp and pending work.
+- **Cached workspace:** live ingestion is disabled for this runtime.
+
+For local diagnostics:
 
 ```sh
 npm run live:status
 ```
 
-The status command reports the last successful signal check. During baseline fetching it may have no signal-check timestamp yet. A timestamp does not prove the server process is still running; keep the server terminal open. A missing credential or unavailable upstream leaves the app in an honest waiting/partial/error state, never a demo-data fallback.
+A saved success timestamp is a record of a completed check, not proof that a local server process is still running. The optional `npm run live` launcher can accept hidden terminal token entry, but `.env.local` avoids entering it repeatedly.
 
-Existing validated caches continue to work. Startup regenerates outdated analysis from those records without a network call. Legacy private analysis files are neither used nor deleted.
+## Deploy and operate
 
-## Interpretation and updates
+The deployed app uses `main`, Vercel, private Redis persistence and a protected QStash trigger. Build with `npm run build`; Vite outputs `dist`. Vercel serves the Node handlers in `api/`.
 
-Every factual statement needs resolvable source evidence. Claims, told/reported statements, verified records and interpretations retain distinct labels. Existing annual contract value is separate from new booked value. Missing monetary values remain unknown; missing currencies are never assumed. Open, declined or won offers do not automatically count as revenue.
+Set production-only server configuration: `AQ_TOKEN`, `CRM_INGESTION_OWNER=hosted`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, and `CRON_SECRET`. Keep ingestion disabled in preview deployments. The scheduler sends its credential in the Authorization header, never in a URL.
 
-Signals merge by original account/event ID; usage by account + week_start + dock_id; requests by account + request_id. Unidentified requests receive explicitly local deterministic keys. Repeated content is a no-op. New content automatically regenerates stakeholder assessments, ranked actions, risks, unknowns and supported contradictions. Closing a request removes it from the proposed action list. No manual analysis file is required.
+Follow [hosted setup and handover](docs/HOSTED_SETUP.md) for coordination, ownership, persistence and acceptance checks. The current setup uses free provider plans with scheduler retries disabled and Redis automatic upgrades disabled; provider quotas still need monitoring.
 
-The deterministic analysis rules treat historical signatories, billing recipients and operational contacts as evidence to investigate, not proof of current authority. They prioritize urgent requests, succession gaps, sustained usage stoppages, commercial requests and documented evidence conflicts. Owners and dates are proposals; unknown authority, unrecorded deadlines and missing value remain unknown. The rules only recognize explicitly supported patterns and do not claim exhaustive interpretation of every document. See [analysis behavior](docs/ANALYSIS.md).
+For a persistent Node host, after building:
 
-Known source retrieval times, local cache timestamps and simulated scenario dates remain separate. Future scenario dates are allowed. A local cache rebuild does not claim a fresh upstream fetch.
+```sh
+NODE_ENV=production npm start
+```
 
-## Checks
+Keep one shared coordinator directory for local processes using the same token. Different hosts require shared coordination. Crash-leftover local locks fail closed and require operator review.
+
+## Development and verification
 
 ```sh
 npm run lint
@@ -54,16 +140,21 @@ npm run build
 npm test
 ```
 
-Tests use isolated synthetic records and mocked MCP responses, including empty-cache initialization, restart/resume, provenance, null values, transport decoding, cooldowns, concurrency, idempotent updates and private HTTP boundaries. Build first to include the browser-bundle exclusion check.
+Build before testing so the browser-bundle exclusion check examines current assets. Tests use isolated synthetic fixtures and mocked MCP responses. They cover provenance, unknown values, real transport envelopes, released-account discovery, restart/resume, concurrency, failed-call cooldowns, idempotent updates, chart row merging and private HTTP boundaries. Mocked changed-signal tests are distinct from observing a new event on the live service.
 
-Production Node start:
+| Directory | Responsibility |
+| --- | --- |
+| `src/` | React views, evidence drawers, charts and presentation schema |
+| `server/` | MCP adapters, persistent coordination, normalization, analysis and HTTP server |
+| `api/` | Vercel workspace and protected ingestion handlers |
+| `scripts/` | Local setup, launcher and status commands |
+| `tests/` | Synthetic unit and integration tests |
+| `docs/` | Design thinking, analysis rules, deployment and walkthrough |
 
-```sh
-NODE_ENV=production npm start
-```
+## Scope and boundaries
 
-Use one persistent coordinator directory across every process sharing a token. Multiple hosts require external shared coordination before use. Crash-leftover locks fail closed and require operator review. No public proxy, note-write route or automatic note writer is provided.
+This is a read-only decision-support prototype, not a full multi-user sales system. It does not play the game, automatically write notes, send messages, close deals, or execute proposed actions. Its rules recognize supported patterns rather than exhaustively interpreting every document.
 
-The [hosted application](https://questathon-crm-blue.vercel.app) runs the `main` implementation on Vercel with private Redis persistence and a protected QStash trigger every two minutes. Production owns MCP ingestion; do not also start a laptop poller with the same token. Initial records are fetched through MCP, and the browser reads only the cached workspace. Free plans are configured with zero scheduler retries and Redis automatic upgrades disabled.
+The judging app exposes its normalized fictional account evidence to viewers. A real customer deployment would require authentication, authorization and a data-sharing policy. Raw caches, credentials and private research never belong in this repository. `.env.local` and `.private/` are ignored and denied by the local file server; browser bundles contain no upstream token. The ingestion endpoint rejects unauthorized calls.
 
-See [hosted setup](docs/HOSTED_SETUP.md), the [historical deployment plan](docs/VERCEL_PLAN.md), [data contract](docs/DATA_CONTRACT.md), [thinking document](docs/THINKING.md), and [walkthrough script](docs/WALKTHROUGH.md). Final event submission requires the owner's review.
+Final event submission and the review of presentation materials remain the owner’s decision.

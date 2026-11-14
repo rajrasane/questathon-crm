@@ -1,6 +1,6 @@
 # Hosted runtime setup
 
-The `feat/submission-ready` branch includes Vercel Node handlers and a Redis REST storage adapter. No resource creation, paid upgrade, hosted MCP ownership or final submission is implicit in these source files.
+The `main` branch includes Vercel Node handlers and a Redis REST storage adapter. The current production app uses one hosted ingestion owner; laptop and preview ingestion must remain disabled while it is active. This guide also describes a clean deployment and ownership handover.
 
 ## Runtime configuration
 
@@ -28,7 +28,7 @@ Initial setup fetches the discovery export, each account's paperwork and referen
 1. Provision approved storage and scheduler without paid upgrades. Deploy with hosted ingestion disabled.
 2. Configure secrets privately. Never copy credentials into chat, Git, logs or the browser bundle.
 3. Stop the laptop ingestion process and record the completion time of its final upstream request. Wait at least 61 seconds, then enable the hosted owner. Do not run both.
-4. Initialize through MCP and verify both accounts and source links in a private window. Do not reintroduce a manual import workflow.
+4. Initialize through MCP and verify all available accounts and source links in a private window. Do not reintroduce a manual import workflow.
 5. Observe a successful hosted signal check. Invoke after the allowed interval; verify repeated signals do not duplicate records and persistent state survives separate function instances.
 6. Verify unauthorized ingestion requests return 401 and unsupported writes fail. Confirm private files and secrets are not served.
 7. Record the actual URL, provider plan, storage persistence, scheduler frequency and any remaining limits. Replace the local review video with a final hosted walkthrough. Final event submission is separate.
