@@ -4,6 +4,8 @@ import { StatementView } from "./StatementView";
 import { Deals } from "./Deals";
 import { AccountVisuals } from "./AccountVisuals";
 import { Portfolio } from "./Portfolio";
+import {Icon} from "./Icon";
+import {connectionState} from "./portfolioModel";
 import { AccountDetails } from "./AccountUpdates";
 
 type View = "overview" | "deals" | "people" | "evidence";
@@ -125,6 +127,7 @@ export function App() {
     setQuery("");
     setAllAccounts(false);
   }
+  const connection = connectionState(response?.ingestion);
   const status =
     loading && !response
       ? "Loading"
@@ -149,19 +152,19 @@ export function App() {
             Account Brief<small>Questathon workspace</small>
           </span>
         </a>
-        <button className={`workspace-home ${portfolio ? "active" : ""}`} onClick={()=>setPortfolio(true)}><span aria-hidden="true">▦</span> Portfolio overview</button>
+        <button className={`workspace-home ${portfolio ? "active" : ""}`} aria-current={portfolio ? "page" : undefined} onClick={()=>setPortfolio(true)}><Icon name="grid"/> Portfolio overview</button>
         <div className="nav-caption">
           Accounts <span>{accounts.length}</span>
         </div>
         <nav aria-label="Accounts">
-          {accounts.map((a) => (
+          {accounts.map((a, index) => (
             <button
               key={a.key}
               className={`account-button ${!portfolio && account?.key === a.key ? "active" : ""}`}
               aria-current={!portfolio && account?.key === a.key ? "page" : undefined}
               onClick={() => selectAccount(a.key)}
             >
-              <span className="account-mark" aria-hidden="true">
+              <span className={`account-mark tone-${index % 4}`} aria-hidden="true">
                 {a.name
                   .split(" ")
                   .slice(0, 2)
@@ -180,12 +183,10 @@ export function App() {
             </p>
           )}
         </nav>
-        <div className="sidebar-bottom">
-          <span className="connection-dot" />{" "}
-          {response?.ingestion?.mode === "live"
-            ? "Signal checks enabled"
-            : "Cached workspace"}
-          <small>Evidence-led account decisions</small>
+        <div className={`sidebar-bottom connection-${connection.tone}`}>
+          <div className="sidebar-sync-heading"><Icon name="pulse"/><strong>Workspace sync</strong><span className="connection-dot"/></div>
+          <p>{connection.label}</p>
+          <small>{response?.ingestion?.lastCheckedAt ? `Last success · ${new Date(response.ingestion.lastCheckedAt).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}` : "No successful signal check recorded"}</small>
         </div>
       </aside>
       <main id="workspace">
