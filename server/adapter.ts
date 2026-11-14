@@ -1,4 +1,4 @@
-/** Server-only transport. No browser route calls this module. Work owns ingestion until explicitly transferred. */
+/** Server-only transport. No browser route calls this module. Only the explicitly selected runtime may own ingestion. */
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, rmdir } from 'node:fs/promises';
 import { join } from 'node:path';

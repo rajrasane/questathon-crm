@@ -1,0 +1,15 @@
+.git
+node_modules
+.private
+.private/**
+private-data
+private-data/**
+.questathon-private
+cache
+data-cache
+.env
+.env.*
+*.log
+*.zip
+*.mp4
+*.webm

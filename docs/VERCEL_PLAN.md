@@ -1,6 +1,6 @@
 # Vercel deployment plan
 
-Status: planning only. No Vercel project, storage, schedule or deployment has been created by this coding task. Provisioning and deployment remain paused pending confirmation in the main conversation after the reported automatic-approval rejection. The laptop remains the sole MCP caller. UI changes and final submission remain outside this step.
+Status: implementation prepared on `feat/submission-ready`; see [hosted setup](HOSTED_SETUP.md) for the current adapter and acceptance steps. Production provisioning and validation remain pending. The historical plan below records the original migration scope. No Vercel project, storage, schedule or deployment has been created by this coding task. Provisioning and deployment remain paused pending confirmation in the main conversation after the reported automatic-approval rejection. The laptop remains the sole MCP caller. Final submission remains outside this step.
 
 ## Target layout
 

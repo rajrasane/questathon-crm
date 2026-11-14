@@ -64,4 +64,4 @@ NODE_ENV=production npm start
 
 Use one persistent coordinator directory across every process sharing a token. Multiple hosts require external shared coordination before use. Crash-leftover locks fail closed and require operator review. No public proxy, note-write route or automatic note writer is provided.
 
-Vercel deployment is still pending: local filesystem storage and persistent timers need a serverless-compatible replacement. See [deployment plan](docs/VERCEL_PLAN.md), [data contract](docs/DATA_CONTRACT.md), and [thinking document](docs/THINKING.md). UI redesign and final submission are separate steps.
+Vercel API handlers and Redis-backed coordination are available on the submission-preparation branch; actual provisioning, secrets, scheduling and hosted acceptance remain pending. See [hosted setup](docs/HOSTED_SETUP.md). See [deployment plan](docs/VERCEL_PLAN.md), [data contract](docs/DATA_CONTRACT.md), and [thinking document](docs/THINKING.md). UI redesign and final submission are separate steps.
