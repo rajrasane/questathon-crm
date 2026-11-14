@@ -8,7 +8,7 @@ import { atomicWrite, readWorkspace } from '../server/storage.js';
 import { Coordinator, RateLimitError, McpAdapter } from '../server/adapter.js';
 import { z } from 'zod';
 // Intentionally synthetic and test-only: never imported by the app.
-function fixture():Snapshot {return {version:1,generatedAt:new Date().toISOString(),sources:[{id:'synthetic-source',title:'Synthetic test source',locator:'test://fixture',retrievedAt:new Date().toISOString(),excerpt:'Artificial test evidence only.'}],accounts:[{key:'synthetic-account',name:'Synthetic test account',nameSourceIds:['synthetic-source'],summary:{text:'Synthetic summary',kind:'reported',sourceIds:['synthetic-source']},stage:{text:'Unknown',kind:'unknown',sourceIds:[]},dealValue:{amount:null,currency:null,basis:'unknown',sourceIds:[]},bookValue:{amount:null,currency:null,basis:'unknown',sourceIds:[]},stakeholders:[],actions:[],risks:[],unknowns:[],contradictions:[]}]};}
+function fixture():Snapshot {return {version:1,generatedAt:new Date().toISOString(),sources:[{id:'synthetic-source',title:'Synthetic test source',locator:'test://fixture',retrievedAt:new Date().toISOString(),excerpt:'Artificial test evidence only.'}],accounts:[{key:'synthetic-account',name:'Synthetic test account',nameSourceIds:['synthetic-source'],summary:{text:'Synthetic summary',kind:'reported',sourceIds:['synthetic-source']},stage:{text:'Unknown',kind:'unknown',sourceIds:[]},dealValue:{amount:null,currency:null,basis:'unknown',sourceIds:[]},bookValue:{amount:null,currency:null,basis:'unknown',sourceIds:[]},deals:null,stakeholders:[],actions:[],risks:[],unknowns:[],contradictions:[]}]};}
 async function temporary(run:(dir:string)=>Promise<void>){const dir=await mkdtemp(join(tmpdir(),'crm-test-'));try{await run(dir);}finally{await rm(dir,{recursive:true,force:true});}}
 test('unknown money is not zero; projections retain their classification',()=>{
  const data=fixture();assert.equal(money(data.accounts[0].dealValue),'Unknown');
@@ -45,7 +45,7 @@ test('durable limiter blocks concurrent processes and restart bypasses; failures
 }));
 test('adapter requires ownership, verified schema, explicit notes; cached reads use no network',()=>temporary(async dir=>{
  const oldOwner=process.env.CRM_INGESTION_OWNER,oldToken=process.env.AQ_TOKEN;
- let calls=0;const request:typeof fetch=async()=>{calls++;return new Response(JSON.stringify({jsonrpc:'2.0',id:'test',result:{value:7}}),{status:200});};
+ let calls=0;const request:typeof fetch=async(_url,init)=>{assert.equal(new Headers(init?.headers).get('Accept'),'application/json, text/event-stream');calls++;return new Response(JSON.stringify({jsonrpc:'2.0',id:'test',result:{content:[{type:'text',text:JSON.stringify({value:7})}],isError:false}}),{status:200});};
  const adapter=new McpAdapter(dir,[{name:'synthetic_read',input:z.object({}).strict(),output:z.object({value:z.number()}),mode:'read'},{name:'write_note',input:z.object({}),output:z.unknown(),mode:'write'}],request);
  try {
   delete process.env.CRM_INGESTION_OWNER;await assert.rejects(adapter.call('synthetic_read',{}),/ownership/);assert.equal(calls,0);

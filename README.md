@@ -1,6 +1,6 @@
 # Account Brief · Questathon CRM
 
-A concise account workspace that separates evidence, reported claims, interpretations and unknowns. Built with React + TypeScript, Vite and a small Express server. No database or browser-held credential.
+A concise account workspace that separates evidence, claims, told/reported statements, verified evidence, interpretations and unknowns. Built with React + TypeScript, Vite and a small Express server. No database or browser-held credential.
 
 ## Run locally
 
@@ -34,7 +34,7 @@ CRM_DATA_DIR=/private/runtime/directory npm run dev
 
 The importer validates the entire snapshot, rejects dangling source references and atomically replaces the private file. It does not print records. Default runtime storage is ignored `.private/`; set an external persistent directory for a deployed instance. Never put snapshots in `src/`, `public/` or `dist/`. Raw upstream formats are deliberately not guessed or automatically mapped.
 
-Each source has a stable source ID, title, original locator, retrieval time and excerpt. Every non-unknown statement and known monetary value needs valid source references. Amounts distinguish booked value, pipeline value and projections. Conflicts are represented as two separate sourced statements. Action dates are explicitly proposed; unknown owners/dates remain null. Synthetic fixtures exist only inside the test suite.
+See [private import contract](docs/IMPORT_CONTRACT.md) for per-deal preparation. Each source has a stable source ID, title, original locator, retrieval time and excerpt. Every non-unknown statement and known monetary value needs valid source references. Amounts distinguish booked value, pipeline value and projections. Conflicts are represented as two separate sourced statements. Action dates are explicitly proposed; unknown owners/dates remain null. Synthetic fixtures exist only inside the test suite.
 
 ## Upstream boundary
 

@@ -23,6 +23,13 @@ export class Coordinator {
     } finally {await rmdir(lock);}
   }
 }
+export function decodeToolResult(result:unknown):unknown {
+  const payload=z.object({content:z.array(z.object({type:z.string(),text:z.string().optional()})).min(1),isError:z.boolean().optional()}).parse(result);
+  if(payload.isError)throw new Error('Upstream returned a tool error');
+  const first=payload.content[0];
+  if(first.type!=='text' || first.text===undefined)throw new Error('Expected JSON text in the first MCP content block');
+  try {return JSON.parse(first.text);} catch {throw new Error('MCP content is not valid JSON');}
+}
 export type VerifiedTool = {name:string; input:z.ZodType; output:z.ZodType; mode:'read'|'write'};
 export class McpAdapter {
   private coordinator:Coordinator;
@@ -42,11 +49,11 @@ export class McpAdapter {
       catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw new Error('Cached upstream response failed validation');}
     }
     return this.coordinator.run(async()=>{
-      const response=await this.request(endpoint,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({jsonrpc:'2.0',id:key,method:'tools/call',params:{name,arguments:input}}),signal:AbortSignal.timeout(25_000)});
+      const response=await this.request(endpoint,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json, text/event-stream',Authorization:`Bearer ${token}`},body:JSON.stringify({jsonrpc:'2.0',id:key,method:'tools/call',params:{name,arguments:input}}),signal:AbortSignal.timeout(25_000)});
       if(!response.ok)throw new Error(`Upstream request failed (${response.status}); no automatic retry`);
       const envelope=z.object({jsonrpc:z.literal('2.0'),id:z.unknown(),result:z.unknown().optional(),error:z.unknown().optional()}).parse(await response.json());
       if(envelope.error || (envelope.result as {isError?:boolean})?.isError)throw new Error('Upstream returned a tool error');
-      const data=tool.output.parse(envelope.result);
+      const data=tool.output.parse(decodeToolResult(envelope.result));
       const result={data,retrievedAt:new Date().toISOString(),cached:false};
       if(tool.mode==='read')await atomicWrite(cache,result);
       return result;

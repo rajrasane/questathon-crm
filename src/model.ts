@@ -3,18 +3,32 @@ import { z } from 'zod';
 const refs = z.array(z.string().min(1));
 export const statementSchema = z.object({
   text: z.string().min(1),
-  kind: z.enum(['verified', 'reported', 'interpretation', 'unknown']),
+  kind: z.enum(['verified', 'claim', 'told', 'reported', 'interpretation', 'unknown']),
   sourceIds: refs,
 }).strict().refine(v => v.kind === 'unknown' || v.sourceIds.length > 0, 'Non-unknown statements require source evidence');
 const moneySchema = z.object({
   amount: z.number().nonnegative().nullable(), currency: z.string().regex(/^[A-Z]{3}$/).nullable(),
   basis: z.enum(['booked', 'pipeline', 'projection', 'unknown']), sourceIds: refs,
 }).strict().refine(v => v.amount === null ? v.basis === 'unknown' : v.currency !== null && v.sourceIds.length > 0 && v.basis !== 'unknown', 'Known money requires currency, basis and evidence');
+// Normalized presentation schema; upstream records are mapped only after schema verification.
+export const offerSchema = z.object({
+  title:z.string().min(1), sourceIds:refs.min(1),
+  status:z.enum(['open','declined','won','unknown']), statusSourceIds:refs,
+  value:moneySchema,
+}).strict().refine(v=>v.status==='unknown' || v.statusSourceIds.length>0,'Known offer status requires evidence');
+export const dealSchema = z.object({
+  key:z.string().min(1), title:z.string().min(1), sourceIds:refs.min(1),
+  stage:statementSchema, worthUpTo:moneySchema,
+  blockers:statementSchema.nullable(), deadline:z.string().nullable(), deadlineSourceIds:refs,
+  offers:z.array(offerSchema).nullable(),
+}).strict().refine(v=>v.deadline===null || v.deadlineSourceIds.length>0,'Deal deadline requires evidence');
+export type Deal = z.infer<typeof dealSchema>;
 export const accountSchema = z.object({
   key: z.string().min(1), name: z.string().min(1), nameSourceIds: refs.min(1),
   summary: statementSchema,
   stage: statementSchema,
   dealValue: moneySchema, bookValue: moneySchema,
+  deals:z.array(dealSchema).nullable().default(null),
   stakeholders: z.array(z.object({name: z.string().min(1), nameSourceIds: refs.min(1), role: z.enum(['decides','pays','uses','blocks']), stance: statementSchema}).strict()),
   actions: z.array(z.object({title:z.string().min(1), owner:z.string().nullable(), date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(), reason:z.string().min(1), outcome:z.string().min(1), sourceIds:refs}).strict()).max(3),
   risks: z.array(z.object({statement:statementSchema, deadline:z.string().nullable(), deadlineSourceIds:refs}).strict().refine(v => v.deadline === null || v.deadlineSourceIds.length > 0,'Deadlines require evidence')),
@@ -39,6 +53,10 @@ export const snapshotSchema = z.object({
       }
       if(typeof child==='object')check(child);
     }
+  }
+  for(const account of data.accounts) {
+    const keys=account.deals?.map(d=>d.key) || [];
+    if(new Set(keys).size!==keys.length)ctx.addIssue({code:'custom',message:'Duplicate deal keys within account'});
   }
   check(data.accounts);
 });
